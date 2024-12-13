@@ -2,7 +2,7 @@
 #include <iomanip>  // Include <iomanip> for std::setw
 #include <vector>
 #include <Eigen/Dense>
-#include "util/eigen.h"  // Adjust the path accordingly
+#include "adore_math/eigen.h"  // Adjust the path accordingly
 
 int main() {
     Eigen::MatrixXd eigenMatrix(3, 4);
@@ -12,7 +12,7 @@ int main() {
 
     std::cout << "Original Eigen Matrix:\n" << eigenMatrix << "\n\n";
 
-    auto stdVector = util::toVector(eigenMatrix);
+    auto stdVector = adore::math::to_vector(eigenMatrix);
 
     std::cout << "Matrix After Conversion to std::vector:\n";
     for (const auto& row : stdVector) {
@@ -23,7 +23,7 @@ int main() {
     }
     std::cout << "\n";
 
-    auto newEigenMatrix = util::toEigen(stdVector);
+    auto newEigenMatrix = adore::math::to_eigen(stdVector);
 
     std::cout << "Matrix After Conversion back to Eigen Matrix:\n" << newEigenMatrix << "\n\n";
 

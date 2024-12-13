@@ -1,6 +1,6 @@
 #include <iostream>
 #include <iomanip> // for std::fixed and std::setprecision
-#include "util/math/PiecewisePolynomial.h"
+#include "adore_math/PiecewisePolynomial.h"
 #include <cmath>
 #include <chrono>
 
@@ -33,7 +33,7 @@ int main() {
     }
 
     // Create an instance of your cubic spline class
-    PiecewisePolynomial cubicSpline;
+    adore::math::PiecewisePolynomial cubicSpline;
 
     // Measure time using chrono
     auto start = std::chrono::high_resolution_clock::now();  // Start the clock
