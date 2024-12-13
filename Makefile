@@ -17,7 +17,7 @@ help:
 .PHONY: build
 build: ## Build ADORe libraries. Must be built in the ADORe CLI Docker context!
 	rm -rf build
-	mkdir build
+	mkdir -p build
 	#cd build && cmake .. -D BUILD_LIBRARIES=ON && make
 	cd build && cmake .. && make
 	cd build && cmake .. && make -j $(nproc) && cd .. && mv build/CMakeCache.txt build/CMakeCache.txt.libraries
