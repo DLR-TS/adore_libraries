@@ -60,13 +60,12 @@ Route::add_lane_center( Border& lane_to_add, const std::optional<MapPoint>& star
 }
 
 double
-Route::get_remaining_route_length()
+Route::get_remaining_route_length() const
 {
   if( center_lane.size() < 2 )
     return 0;
   return center_lane.back().s - center_lane.front().s;
 }
-
 
 } // namespace map
 } // namespace adore

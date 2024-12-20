@@ -176,6 +176,24 @@ public:
     return route;
   }
 
+  template<typename Point>
+  bool
+  is_point_on_road( const Point& point )
+  {
+    double min_dist   = std::numeric_limits<double>::max();
+    auto   near_point = quadtree.get_nearest_point( point, min_dist );
+    if( !near_point )
+      return false;
+
+    double width = lanes[near_point->parent_id]->get_width( near_point->s );
+
+    if( min_dist < width / 2 )
+    {
+      return true;
+    }
+    return false;
+  }
+
 private:
 
   constexpr static double ROUTE_INTERPOLATION_DIST = 0.05;

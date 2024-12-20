@@ -21,9 +21,9 @@ namespace map
 
 
 double
-Lane::get_width( double s )
+Lane::get_width( double s ) const
 {
-  if( borders.inner.points.empty() || borders.outer.points.empty() )
+  if( borders.inner.interpolated_points.empty() || borders.outer.interpolated_points.empty() )
     return 0.0;
 
   adore::map::MapPoint inner_point = borders.inner.get_interpolated_point( s * borders.inner.get_length() / length );

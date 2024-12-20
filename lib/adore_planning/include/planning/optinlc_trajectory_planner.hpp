@@ -20,6 +20,7 @@
 #include <limits>
 #include <vector>
 
+#include "adore_map/map.hpp"
 #include "adore_map/route.hpp"
 #include "adore_math/PiecewisePolynomial.h"
 #include "adore_math/angles.h"
@@ -29,6 +30,7 @@
 #include "OptiNLC_OCP.h"
 #include "OptiNLC_Options.h"
 #include "OptiNLC_Solver.h"
+#include "dynamics/traffic_participant.hpp"
 #include "dynamics/trajectory.hpp"
 
 namespace adore
@@ -81,7 +83,7 @@ private:
     std::vector<double> width;
   } route_to_follow;
 
-  route_to_piecewise_polynomial setup_optimizer_parameters_using_route( map::Route& latest_route );
+  route_to_piecewise_polynomial setup_optimizer_parameters_using_route( const map::Route& latest_route );
 
   double lateral_weight  = 0.01;
   double heading_weight  = 0.06;
@@ -99,6 +101,9 @@ private:
   double              curvature_weight          = 6.0;
   int                 distance_to_add_behind    = 1;
   double              distance_to_goal          = 100.0;
+  double              distance_to_object        = 0.0;
+  double              distance_to_object_min    = 10000.0;
+  bool                within_lane               = true;
 
   // IDM related members
   double min_distance_to_vehicle_ahead = 10.0; // 10 meters minimum gap to vehicle in front
@@ -136,8 +141,10 @@ private:
   void setup_reference_route( route_to_piecewise_polynomial& reference_route );
 
   // Helper function to get reference velocity
-  void                setup_reference_velocity( const dynamics::VehicleStateDynamic& current_state );
-  double              calculate_idm_velocity( const dynamics::VehicleStateDynamic& current_state );
+  void                setup_reference_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
+                                                const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
+  double              calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
+                                              const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
   std::vector<double> calculate_curvature( const std::vector<adore::math::Point2d>& path );
 
   // Helper function to set up the solver and solve the problem
@@ -151,7 +158,8 @@ public:
   dynamics::VehicleCommandLimits limits;
 
   // Public method to get the next vehicle command based on OptiNLCTrajectoryPlanner
-  dynamics::Trajectory plan_trajectory( map::Route latest_route, const dynamics::VehicleStateDynamic& current_state );
+  dynamics::Trajectory plan_trajectory( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
+                                        const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
 
   void set_parameters( const std::map<std::string, double>& params );
 };

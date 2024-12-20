@@ -9,6 +9,7 @@
  *    Sanath Himasekhar Konthala
  ********************************************************************************/
 #include "adore_math/PiecewisePolynomial.h"
+
 #include <cstddef>
 #include <iostream>
 #include <numeric>

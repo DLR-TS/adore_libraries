@@ -30,19 +30,74 @@ namespace adore
 namespace map
 {
 
+class Map;
+
 struct Route
 {
   std::deque<MapPoint> center_lane;
   std::deque<size_t>   lane_id_route;
   adore::math::Point2d start;
   adore::math::Point2d destination;
-
   // Add points to the route
   void add_lane_center( Border& points, const std::optional<MapPoint>& start_point, const std::optional<MapPoint>& end_point,
                         bool reverse );
 
   // get length of route
-  double get_remaining_route_length();
+  double get_remaining_route_length() const;
+
+  // get distance to object along route and if the object is within the lane
+  template<typename state>
+  std::pair<bool, double>
+  get_distance_along_route( const Map& latest_map, const state& object_position ) const
+  {
+    if( center_lane.empty() )
+    {
+      // Route is empty
+      return { true, 0.0 };
+    }
+
+    // Initialize minimum distance and perpendicular offset value
+    double s_at_min_distance    = std::numeric_limits<double>::max();
+    double perpendicular_offset = 0.0;
+    bool   within_lane          = true;
+    double min_dist             = std::numeric_limits<double>::max();
+    double lane_width           = 4.0;
+
+    // Iterate over the route points to find the nearest point
+    for( size_t i = 0; i < center_lane.size() - 1; i++ )
+    {
+      double distance = adore::math::distance_2d( object_position, center_lane[i] );
+      if( distance < min_dist )
+      {
+        min_dist = distance;
+        if( latest_map.lanes.find( center_lane[i].parent_id ) != latest_map.lanes.end() )
+        {
+          lane_width = latest_map.lanes.at( center_lane[i].parent_id )->get_width( 0.0 );
+        }
+
+        s_at_min_distance = center_lane[i].s + min_dist;
+        // Direction vector of the section at which the object is
+        double dx = center_lane[i + 1].x - center_lane[i].x;
+        double dy = center_lane[i + 1].y - center_lane[i].y;
+
+        // Numerator: Area of the parallelogram (absolute value)
+        double numerator = std::abs( dy * object_position.x - dx * object_position.y + center_lane[i + 1].x * center_lane[i].y
+                                     - center_lane[i + 1].y * center_lane[i].x );
+
+        // Denominator: Length of the line AB
+        double denominator = std::sqrt( dx * dx + dy * dy );
+
+        perpendicular_offset = numerator / denominator;
+        if( perpendicular_offset > lane_width / 2 )
+        {
+          within_lane = false;
+        }
+      }
+    }
+
+
+    return { within_lane, s_at_min_distance };
+  }
 
   // Helper functions
   template<typename State>

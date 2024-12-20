@@ -118,7 +118,8 @@ OptiNLCTrajectoryPlanner::setup_objective_function( OptiNLC_OCP<double, input_si
 
 // Public method to get the next vehicle command based on OptiNLCTrajectoryPlanner
 dynamics::Trajectory
-OptiNLCTrajectoryPlanner::plan_trajectory( map::Route latest_route, const dynamics::VehicleStateDynamic& current_state )
+OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
+                                           const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
 {
   route_to_piecewise_polynomial reference_route = setup_optimizer_parameters_using_route( latest_route );
   auto                          start_time      = std::chrono::high_resolution_clock::now();
@@ -132,10 +133,9 @@ OptiNLCTrajectoryPlanner::plan_trajectory( map::Route latest_route, const dynami
 
   // Set up reference route
   setup_reference_route( reference_route );
-  std::cerr << "lateral weight: " << lateral_weight << std::endl;
 
   // Set up reference velocity
-  setup_reference_velocity( current_state );
+  setup_reference_velocity( latest_route, current_state, latest_map, traffic_participants );
 
   // Set up dynamic model, objective, and constraints
   setup_dynamic_model( ocp );
@@ -268,7 +268,7 @@ OptiNLCTrajectoryPlanner::OptiNLCTrajectoryPlanner()
 }
 
 route_to_piecewise_polynomial
-OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( adore::map::Route& latest_route )
+OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::map::Route& latest_route )
 {
   auto start_time  = std::chrono::high_resolution_clock::now();
   distance_to_goal = latest_route.get_remaining_route_length();
@@ -356,7 +356,9 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( adore::map::Ro
 }
 
 void
-OptiNLCTrajectoryPlanner::setup_reference_velocity( const dynamics::VehicleStateDynamic& current_state )
+OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
+                                                    const map::Map&                        latest_map,
+                                                    const dynamics::TrafficParticipantSet& traffic_participants )
 {
   std::vector<adore::math::Point2d> path_for_curvature;
   for( int i = 0; i < look_ahead_for_curvature; i++ )
@@ -387,21 +389,35 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const dynamics::VehicleState
   double max_curvature = *std::max_element( total_curvature.begin(), total_curvature.end() );
   reference_velocity   = maximum_velocity / ( 1 + curvature_weight * max_curvature );
 
-  double idm_velocity = calculate_idm_velocity( current_state );
+  double idm_velocity = calculate_idm_velocity( latest_route, current_state, latest_map, traffic_participants );
   reference_velocity  = std::min( reference_velocity, idm_velocity );
 }
 
 double
-OptiNLCTrajectoryPlanner::calculate_idm_velocity( const dynamics::VehicleStateDynamic& current_state )
+OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
+                                                  const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
 {
   double idm_velocity = maximum_velocity;
+
+  for( const auto& [id, participant] : traffic_participants )
+  {
+    math::Point2d object_position;
+    object_position.x                      = participant.state.x;
+    object_position.y                      = participant.state.y;
+    auto [within_lane, distance_to_object] = latest_route.get_distance_along_route( latest_map, object_position );
+    if( within_lane && distance_to_object < distance_to_object_min )
+    {
+      distance_to_object_min = distance_to_object;
+    }
+  }
+  double distance_for_idm = std::min( distance_to_object_min, distance_to_goal );
 
   double s_star = min_distance_to_vehicle_ahead + current_state.vx * desired_time_headway
                 + current_state.vx * ( current_state.vx - front_vehicle_velocity ) / ( 2 * sqrt( max_acceleration * max_deceleration ) );
   idm_velocity = current_state.vx
                + max_acceleration
                    * ( 1 - ( current_state.vx / maximum_velocity ) * ( current_state.vx / maximum_velocity )
-                       - ( s_star / distance_to_goal ) * ( s_star / distance_to_goal ) );
+                       - ( s_star / distance_for_idm ) * ( s_star / distance_for_idm ) );
   if( idm_velocity < 0.0 )
   {
     idm_velocity = 0.0;

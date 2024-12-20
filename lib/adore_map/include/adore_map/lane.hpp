@@ -88,7 +88,7 @@ struct Lane
   double speed_limit = 5.0; // Default to 5 m/s
 
   // Method to calculate the width of the lane at a given s coordinate
-  double get_width( double s );
+  double get_width( double s ) const;
 
   // Set material based on string input
   void set_material( const std::string& material_str );

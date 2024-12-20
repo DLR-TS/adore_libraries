@@ -342,21 +342,23 @@ Border::get_interpolated_point( double s ) const
   {
 
     // Linear interpolation using the original points
-    if( points.empty() )
+    if( points.empty() && interpolated_points.empty() )
       throw std::invalid_argument( "Border is empty." );
 
-    if( s <= points.front().s )
-      return points.front();
-    if( s >= points.back().s )
-      return points.back();
+    auto& interpolation_points = ( points.size() > 0 ) ? points : interpolated_points;
 
-    // Find the two points between which s lies
-    for( size_t i = 1; i < points.size(); ++i )
+    if( s <= interpolation_points.front().s )
+      return interpolation_points.front();
+    if( s >= interpolation_points.back().s )
+      return interpolation_points.back();
+
+    // Find the two interpolation_points between which s lies
+    for( size_t i = 1; i < interpolation_points.size(); ++i )
     {
-      if( s < points[i].s )
+      if( s < interpolation_points[i].s )
       {
-        const MapPoint& p1 = points[i - 1];
-        const MapPoint& p2 = points[i];
+        const MapPoint& p1 = interpolation_points[i - 1];
+        const MapPoint& p2 = interpolation_points[i];
 
         // Compute the interpolation factor (t) in [0, 1]
         double t = ( s - p1.s ) / ( p2.s - p1.s );
