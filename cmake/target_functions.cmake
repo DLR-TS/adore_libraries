@@ -67,8 +67,6 @@ macro(generate_library_targets SOURCE_DIRECTORY)
         #message(" is_library: ${is_library_return_value}")
         #message(" is_interface: ${is_interface_return_value}")
         if(is_library_return_value OR is_interface_return_value)
-            die()
-
             set(ignore_path FALSE)
             cmakeignore(${directory} ${cmakeignore_file} RETURN_VALUE)
             set(ignore_path ${RETURN_VALUE})
