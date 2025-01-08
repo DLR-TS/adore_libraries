@@ -41,23 +41,25 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
       desired_deceleration = value;
     if( name == "max_lateral_acceleration" )
       max_lateral_acceleration = value;
-    if( name == "number_integration_nodes" )
-      number_integration_nodes = value;
+    if( name == "number_of_integration_steps" )
+      number_of_integration_steps = value;
+    if( name == "k_direction" )
+      k_direction = value;
+    if( name == "k_speed" )
+      k_speed = value;
+    if( name == "k_yaw" )
+      k_yaw = value;
+    if( name == "k_distance" )
+      k_distance = value;
   }
 }
 
-dynamics::TrafficParticipantSet
-MultiAgentPID::plan_trajectories( const dynamics::TrafficParticipantSet& traffic_participant_set,
-                                    const dynamics::VehicleCommandLimits& limits )
+void
+MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_participant_set, const dynamics::VehicleCommandLimits& limits )
 {
-    dynamics::TrafficParticipantSet PID_planned_traffic = traffic_participant_set;
-    double k_dir = 0.6;
-    double k_speed = 2.0;
-    double k_heading = 0.1;
-
-    for (int i = 0; i < number_integration_nodes; i++)
+    for (int i = 0; i < number_of_integration_steps; i++)
     {
-        for (auto& pair : PID_planned_traffic)
+        for (auto& pair : traffic_participant_set)
         {
             dynamics::VehicleStateDynamic next_state;
             dynamics::VehicleStateDynamic current_state;
@@ -69,50 +71,54 @@ MultiAgentPID::plan_trajectories( const dynamics::TrafficParticipantSet& traffic
             {
                 current_state = pair.second.state;
             }
+
+            double target_distance = 0.5 + 0.1 * current_state.vx;
             
-            math::Point2d center_lane_reference_point = MultiAgentPID::compute_center_lane_reference_point(3.0, pair.second.route.value());
-            double reference_heading = MultiAgentPID::compute_center_lane_reference_heading(3.0, pair.second.route.value());
-            
-            double error_direction = MultiAgentPID::compute_error_direction(current_state.x, current_state.y, current_state.yaw_angle,
-                                                                            center_lane_reference_point.x, center_lane_reference_point.y);
-            double error_distance = MultiAgentPID::compute_error_distance(current_state.x, current_state.y, current_state.yaw_angle,
-                                                                            center_lane_reference_point.x, center_lane_reference_point.y);
-            double error_speed = MultiAgentPID::compute_error_speed(current_state.vx);
-            double error_heading = MultiAgentPID::compute_error_heading(current_state.yaw_angle, reference_heading);
+            math::Pose2d center_lane_target_pose = pair.second.route.value().get_pose_at_distance_along_route(target_distance);
+
+            double error_direction = compute_error_direction(current_state, center_lane_target_pose);
+            double error_lateral_distance = compute_error_lateral_distance(current_state, center_lane_target_pose);
+            double error_speed = compute_error_speed(current_state.vx);
+            double error_yaw = compute_error_yaw(current_state.yaw_angle, center_lane_target_pose.yaw);
             
             vehicle_command.acceleration = k_speed * error_speed;
-            vehicle_command.steering_angle = k_dir * error_direction + k_heading * error_heading;
+            vehicle_command.steering_angle = k_direction * error_direction + k_yaw * error_yaw + k_distance * error_lateral_distance;
 
+            if (vehicle_command.acceleration > limits.max_acceleration)
+                vehicle_command.acceleration = limits.max_acceleration;
+            if (vehicle_command.acceleration < limits.min_acceleration)
+                vehicle_command.acceleration = limits.min_acceleration;
+            if (vehicle_command.steering_angle > limits.max_steering_angle)
+                vehicle_command.steering_angle = limits.max_steering_angle;
+            if (vehicle_command.steering_angle < - limits.max_steering_angle)
+                vehicle_command.steering_angle = - limits.max_steering_angle;
+            
             next_state = dynamics::euler_step(current_state, vehicle_command, dt, wheelbase);
 
             pair.second.trajectory.value().states.push_back(next_state);
         }
     }
-    
-    return PID_planned_traffic;
 }
 
 double 
-MultiAgentPID::compute_error_direction(const double x_position, const double y_position, const double heading,
-                                     const double x_objective, const double y_objective)
+MultiAgentPID::compute_error_direction(const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose)
 {
     double err_dir = 0.0;
-    double psi = heading;
-    double Dx = (x_objective - x_position);
-    double Dy = (y_objective - y_position);
+    double psi = current_state.yaw_angle;
+    double Dx = (target_pose.x - current_state.x);
+    double Dy = (target_pose.y - current_state.y);
     double psi_objective = atan2(Dy, Dx);
     err_dir = psi_objective - psi;
     return err_dir;
 }
 
 double 
-MultiAgentPID::compute_error_distance(const double x_position, const double y_position, const double heading, 
-                                const double x_objective, const double y_objective)
+MultiAgentPID::compute_error_lateral_distance(const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose)
 {
     double error_distance = 0.0;
-    double Dx = (x_objective - x_position);
-    double Dy = (y_objective - y_position);
-    error_distance = Dx * cos(heading) + Dy * sin(heading);
+    double Dx = (target_pose.x - current_state.x);
+    double Dy = (target_pose.y - current_state.y);
+    error_distance = Dx * cos(current_state.yaw_angle) + Dy * sin(current_state.yaw_angle);
     return error_distance;
 }
 
@@ -124,48 +130,11 @@ MultiAgentPID::compute_error_speed(const double speed)
 }
 
 double
-MultiAgentPID::compute_error_heading(const double heading, const double heading_objective)
+MultiAgentPID::compute_error_yaw(const double current_yaw, const double yaw_objective)
 {
-    double error_heading = 0.0;
-    error_heading = heading_objective - heading;
-    return error_heading;
-}
-
-double
-MultiAgentPID::compute_center_lane_reference_heading(const double distance, map::Route& route)
-{
-    double reference_heading = 0.0;
-    math::Point2d reference_point;
-    math::Point2d next_reference_point;
-    for (int i = 0; i < route.center_lane.size() - 1; i++)
-    {
-        if (route.center_lane[i].s > distance)
-        {
-            reference_point.x = route.center_lane[i].x;
-            reference_point.y = route.center_lane[i].y;
-            next_reference_point.x = route.center_lane[i + 1].x;
-            next_reference_point.y = route.center_lane[i + 1].y;
-            reference_heading = std::atan2(next_reference_point.y - reference_point.y, next_reference_point.x - reference_point.x);
-            break;
-        }
-    }
-    return reference_heading;
-}
-
-math::Point2d
-MultiAgentPID::compute_center_lane_reference_point(const double distance, map::Route& route)
-{
-    math::Point2d reference_point;
-    for (int i = 0; i < route.center_lane.size(); i++)
-    {
-        if (route.center_lane[i].s > distance)
-        {
-            reference_point.x = route.center_lane[i].x;
-            reference_point.y = route.center_lane[i].y;
-            break;
-        }
-    }
-    return reference_point;
+    double error_yaw = 0.0;
+    error_yaw = yaw_objective - current_yaw;
+    return error_yaw;
 }
 
 } // namespace planner

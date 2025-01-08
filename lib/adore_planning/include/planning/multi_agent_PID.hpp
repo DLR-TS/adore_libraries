@@ -33,29 +33,28 @@ public:
 
   MultiAgentPID();
 
-  void                 set_parameters( const std::map<std::string, double>& params );
-  dynamics::TrafficParticipantSet plan_trajectories( const dynamics::TrafficParticipantSet& traffic_participant_set, 
-                                        const dynamics::VehicleCommandLimits& limits );
+  void set_parameters( const std::map<std::string, double>& params );
+  void plan_trajectories( dynamics::TrafficParticipantSet& traffic_participant_set, const dynamics::VehicleCommandLimits& limits );
 
   double       desired_acceleration     = 0.3;
   double       desired_deceleration     = 0.3;
   double       max_lateral_acceleration = 0.5;
-  int          number_integration_nodes = 120;
+  int          number_of_integration_steps = 120;
   double       dt                       = 0.05;
   const double min_point_distance       = 0.05;
   double       max_speed                = 2.5;
   double       wheelbase                = 2.7;
+  double       k_direction              = 0.6;
+  double       k_speed                  = 2.0;
+  double       k_yaw                    = 0.1;
+  double       k_distance               = 0.1;
 
 
 private:
-  double compute_error_direction(const double x_position, const double y_position, const double heading, 
-                                const double x_objective, const double y_objective);
-  double compute_error_distance(const double x_position, const double y_position, const double heading, 
-                                const double x_objective, const double y_objective);
+  double compute_error_direction(const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose);
+  double compute_error_lateral_distance(const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose);
   double compute_error_speed(const double speed);
-  double compute_error_heading(const double heading, const double heading_objective);
-  math::Point2d compute_center_lane_reference_point(const double distance, map::Route& route);
-  double compute_center_lane_reference_heading(const double distance, map::Route& route);
+  double compute_error_yaw(const double current_yaw, const double yaw_objective);
 };
 } // namespace planner
 } // namespace adore

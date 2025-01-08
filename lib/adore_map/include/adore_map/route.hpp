@@ -24,6 +24,7 @@
 #include "adore_map/road_graph.hpp"
 #include "adore_math/distance.h"
 #include "adore_math/point.h"
+#include "adore_math/pose.h"
 
 namespace adore
 {
@@ -243,6 +244,26 @@ struct Route
 
     // Replace the original center_lane with the interpolated_lane
     center_lane = std::move( interpolated_lane );
+  }
+
+  math::Pose2d
+  get_pose_at_distance_along_route(const double distance)
+  {
+    math::Pose2d pose2d;
+    math::Point2d next_point;
+    for (int i = 0; i < center_lane.size() - 1; i++)
+    {
+        if (center_lane[i].s > distance)
+        {
+            pose2d.x = center_lane[i].x;
+            pose2d.y = center_lane[i].y;
+            next_point.x = center_lane[i + 1].x;
+            next_point.y = center_lane[i + 1].y;
+            pose2d.yaw = std::atan2(next_point.y - pose2d.y, next_point.x - pose2d.x);
+            break;
+        }
+    }
+    return pose2d;
   }
 };
 
