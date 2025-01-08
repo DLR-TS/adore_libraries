@@ -14,6 +14,9 @@ set(PACKAGE_DESCRIPTION "Assorted libraries for ADORe")
 set(PACKAGE_MAINTAINER "DLR TS-KOS")
 set(PACKAGE_MAINTAINER_EMAIL " opensource-ts@dlr.de")
 
+set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS "-std=c++17 -Wall -Wextra -O3")
+
 message(STATUS "============================")
 message(STATUS "Project: ${PROJECT}")
 message(STATUS "Build Directory: ${BUILD_DIRECTORY}")

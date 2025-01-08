@@ -391,6 +391,12 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
 
   double idm_velocity = calculate_idm_velocity( latest_route, current_state, latest_map, traffic_participants );
   reference_velocity  = std::min( reference_velocity, idm_velocity );
+
+  auto current_route_point_max_speed = latest_route.center_lane.front().max_speed;
+  if( current_route_point_max_speed.has_value() )
+  {
+    reference_velocity = std::min( reference_velocity, current_route_point_max_speed.value() );
+  }
 }
 
 double
