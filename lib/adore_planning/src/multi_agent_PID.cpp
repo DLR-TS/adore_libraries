@@ -14,6 +14,7 @@
  ********************************************************************************/
 #include "planning/multi_agent_PID.hpp"
 
+
 #include "adore_math/curvature.hpp"
 #include "adore_math/point.h"
 #include "adore_math/spline.h"
@@ -51,6 +52,10 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
       k_yaw = value;
     if( name == "k_distance" )
       k_distance = value;
+    if( name == "k_goal_point" )
+      k_goal_point = value;
+    if( name == "k_repulsive_force" )
+      k_repulsive_force = value;
   }
 }
 
@@ -71,8 +76,17 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
             {
                 current_state = pair.second.state;
             }
+            
+            double min_distance = 5.0;
+            double current_trajectory_s = pair.second.route.value().get_s_at_state(current_state, min_distance);
+            double target_distance = current_trajectory_s + 0.5 + 0.1 * current_state.vx;
+            double goal_point_distance = 1e6;
+            if (pair.second.goal_point.has_value())
+            {
+                goal_point_distance = pair.second.route.value().get_s_at_state(pair.second.goal_point.value(), min_distance) - current_trajectory_s + 1e-6;
+            }
 
-            double target_distance = 0.5 + 0.1 * current_state.vx;
+            double distance_from_closest_object = compute_distance_from_nearest_obstacle(traffic_participant_set, pair.first) - current_trajectory_s + 1e-6;
             
             math::Pose2d center_lane_target_pose = pair.second.route.value().get_pose_at_distance_along_route(target_distance);
 
@@ -81,7 +95,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
             double error_speed = compute_error_speed(current_state.vx);
             double error_yaw = compute_error_yaw(current_state.yaw_angle, center_lane_target_pose.yaw);
             
-            vehicle_command.acceleration = k_speed * error_speed;
+            vehicle_command.acceleration = k_speed * error_speed - k_goal_point * 40.0 / goal_point_distance - k_repulsive_force * 10.0 / distance_from_closest_object;
             vehicle_command.steering_angle = k_direction * error_direction + k_yaw * error_yaw + k_distance * error_lateral_distance;
 
             if (vehicle_command.acceleration > limits.max_acceleration)
@@ -101,7 +115,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 }
 
 double 
-MultiAgentPID::compute_error_direction(const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose)
+MultiAgentPID::compute_error_direction( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose )
 {
     double err_dir = 0.0;
     double psi = current_state.yaw_angle;
@@ -113,7 +127,7 @@ MultiAgentPID::compute_error_direction(const dynamics::VehicleStateDynamic& curr
 }
 
 double 
-MultiAgentPID::compute_error_lateral_distance(const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose)
+MultiAgentPID::compute_error_lateral_distance( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose )
 {
     double error_distance = 0.0;
     double Dx = (target_pose.x - current_state.x);
@@ -123,18 +137,48 @@ MultiAgentPID::compute_error_lateral_distance(const dynamics::VehicleStateDynami
 }
 
 double
-MultiAgentPID::compute_error_speed(const double speed)
+MultiAgentPID::compute_error_speed( const double speed )
 {
     double error_speed = max_speed - speed;
     return error_speed;
 }
 
 double
-MultiAgentPID::compute_error_yaw(const double current_yaw, const double yaw_objective)
+MultiAgentPID::compute_error_yaw( const double current_yaw, const double yaw_objective )
 {
     double error_yaw = 0.0;
     error_yaw = yaw_objective - current_yaw;
     return error_yaw;
+}
+
+double 
+MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int id_vehicle )
+{
+    double distance_from_closest_obstacle = 1e6;
+    double distance = 1e6;
+    double min_distance = 5.0;
+    dynamics::TrafficParticipant reference_vehicle = traffic_participant_set.at(id_vehicle);
+    for (auto& pair : traffic_participant_set)
+    {
+        if (pair.first == id_vehicle) {
+            continue;  
+        }
+        dynamics::VehicleStateDynamic object_position;
+        if (pair.second.trajectory.has_value())
+        {
+            object_position = pair.second.trajectory.value().states.back();
+        } else
+        {
+            object_position = pair.second.state;
+        }
+        
+        distance = pair.second.route.value().get_s_at_state(object_position, min_distance);
+        if (distance_from_closest_obstacle > distance)
+        {
+            distance_from_closest_obstacle = distance;
+        }
+    }
+    return distance_from_closest_obstacle;
 }
 
 } // namespace planner

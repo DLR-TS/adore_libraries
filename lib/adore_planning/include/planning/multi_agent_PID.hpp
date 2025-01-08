@@ -48,13 +48,16 @@ public:
   double       k_speed                  = 2.0;
   double       k_yaw                    = 0.1;
   double       k_distance               = 0.1;
+  double       k_goal_point             = 1.0;
+  double       k_repulsive_force        = 2.0;
 
 
 private:
-  double compute_error_direction(const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose);
-  double compute_error_lateral_distance(const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose);
-  double compute_error_speed(const double speed);
-  double compute_error_yaw(const double current_yaw, const double yaw_objective);
+  double compute_error_direction( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose );
+  double compute_error_lateral_distance( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose );
+  double compute_error_speed( const double speed );
+  double compute_error_yaw( const double current_yaw, const double yaw_objective );
+  double compute_distance_from_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int id_vehicle );
 };
 } // namespace planner
 } // namespace adore
