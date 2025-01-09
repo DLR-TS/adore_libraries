@@ -251,15 +251,21 @@ struct Route
   {
     math::Pose2d pose2d;
     math::Point2d next_point;
-    for (int i = 0; i < center_lane.size() - 1; i++)
+    math::Point2d previous_point;
+    double weight;
+    double eps = 1e-6;
+    for (int i = 1; i < center_lane.size(); i++)
     {
         if (center_lane[i].s > distance)
         {
-            pose2d.x = center_lane[i].x;
-            pose2d.y = center_lane[i].y;
-            next_point.x = center_lane[i + 1].x;
-            next_point.y = center_lane[i + 1].y;
-            pose2d.yaw = std::atan2(next_point.y - pose2d.y, next_point.x - pose2d.x);
+            previous_point.x = center_lane[i - 1].x;
+            previous_point.y = center_lane[i - 1].y;
+            next_point.x = center_lane[i].x;
+            next_point.y = center_lane[i].y;
+            weight = (distance - center_lane[i - 1].s) / (center_lane[i].s - center_lane[i - 1].s + eps);
+            pose2d.x = previous_point.x * (weight - 1) + next_point.x * weight;
+            pose2d.y = previous_point.y * (weight - 1) + next_point.y * weight;
+            pose2d.yaw = std::atan2(next_point.y - previous_point.y, next_point.x - previous_point.x);
             break;
         }
     }

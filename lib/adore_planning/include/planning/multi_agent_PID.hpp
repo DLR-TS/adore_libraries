@@ -53,8 +53,8 @@ public:
 
 
 private:
-  double compute_error_direction( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose );
-  double compute_error_lateral_distance( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d target_pose );
+  double compute_error_direction( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose );
+  double compute_error_lateral_distance( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose );
   double compute_error_speed( const double speed );
   double compute_error_yaw( const double current_yaw, const double yaw_objective );
   double compute_distance_from_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int id_vehicle );
