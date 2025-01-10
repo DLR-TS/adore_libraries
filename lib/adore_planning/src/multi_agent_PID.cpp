@@ -72,6 +72,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
             if (pair.second.trajectory.has_value())
             {
                 current_state = pair.second.trajectory.value().states.back();
+                pair.second.trajectory.value().label = "Follow Route";
             } else
             {
                 current_state = pair.second.state;
