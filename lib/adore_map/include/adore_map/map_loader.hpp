@@ -18,6 +18,9 @@
 #include "adore_map/map.hpp"
 #include "adore_map/r2s_parser.h"
 
+#include "OpenDriveMap.h"
+#include "RoutingGraph.h"
+
 namespace adore
 {
 namespace map
@@ -38,6 +41,11 @@ public:
 
   // Static method to load a Map from an R2S file
   static Map load_from_r2s_file( const std::string& map_file_location );
+
+  static Map load_from_xodr_file( const std::string& map_file_location );
+
+  static Map load_from_file( const std::string& map_file_location );
+
 
 private:
 
@@ -70,6 +78,8 @@ private:
 
   static RoadGraph                         infer_graph_from_proximity_of_lanes( Map& map, double proximity );
   static std::pair<double, ConnectionType> calculate_lane_distance( const Lane& from_lane, const Lane& to_lane );
+
+  static std::pair<Border, Border> xodr_mesh_to_borders( const odr::Mesh3D& mesh, size_t lane_id, double s0 );
 };
 
 } // namespace map

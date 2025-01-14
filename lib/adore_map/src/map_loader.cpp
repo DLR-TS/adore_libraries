@@ -17,6 +17,37 @@ namespace adore
 {
 namespace map
 {
+Map
+MapLoader::load_from_file( const std::string& map_file_location )
+{
+  // Utility function to get the lowercase extension
+  auto to_lower = []( const std::string& str ) {
+    std::string lower_str = str;
+    std::transform( lower_str.begin(), lower_str.end(), lower_str.begin(), []( unsigned char c ) { return std::tolower( c ); } );
+    return lower_str;
+  };
+
+  // Extract file extension
+  std::string::size_type dot_pos = map_file_location.find_last_of( '.' );
+  if( dot_pos == std::string::npos )
+  {
+    throw std::invalid_argument( "File has no extension: " + map_file_location );
+  }
+
+  std::string extension = to_lower( map_file_location.substr( dot_pos + 1 ) );
+
+  // Decide based on the file extension
+  if( extension == "xodr" )
+  {
+    return load_from_xodr_file( map_file_location );
+  }
+  else if( extension == "r2sr" )
+  {
+    return load_from_r2s_file( map_file_location );
+  }
+
+  throw std::invalid_argument( "Unsupported file extension: " + extension );
+}
 
 size_t
 MapLoader::generate_lane_id()
@@ -331,6 +362,92 @@ MapLoader::set_quadtree_bounds( Map& map, const std::vector<adore::r2s::BorderDa
   map.quadtree.boundary.y_min = y_min - 10;
   map.quadtree.boundary.y_max = y_max + 10;
 }
+
+Map
+MapLoader::load_from_xodr_file( const std::string& filename )
+{
+  odr::OpenDriveMap                        xodr_map( filename );
+  std::unordered_map<odr::LaneKey, size_t> lane_mapping;
+
+  size_t lane_id_counter = 0;
+  size_t road_id_counter = 0;
+  // Lambda functions for generating unique IDs
+  auto generate_lane_id = [&lane_id_counter]() -> size_t { return ++lane_id_counter; };
+  auto generate_road_id = [&road_id_counter]() -> size_t { return ++road_id_counter; };
+
+  const double mesh_eps = 0.5;
+
+  Map adore_road_map;
+
+  for( const auto& [xodr_road_id, xodr_road] : xodr_map.id_to_road )
+  {
+    for( const auto& [lanesec_s, lanesec] : xodr_road.s_to_lanesection )
+    {
+      Road adore_road( xodr_road_id + " s: " + std::to_string( lanesec_s ), generate_road_id(), "TODO", xodr_road.left_hand_traffic );
+
+      for( const auto& [lane_id, lane] : lanesec.id_to_lane )
+      {
+        if( lane.id == 0 )
+          continue;
+
+        auto lane_mesh = xodr_road.get_lane_mesh( lane, mesh_eps );
+
+        generate_lane_id();
+
+        auto [inner_border, outer_border] = xodr_mesh_to_borders( lane_mesh, lane_id, lanesec_s );
+
+        std::shared_ptr<Lane> adore_lane_ptr = std::make_shared<Lane>( inner_border, outer_border, lane_id, adore_road.id, lane.id < 0 );
+
+        lane_mapping[lane.key] = adore_lane_ptr->id;
+
+
+        adore_road.lanes.insert( adore_lane_ptr );
+
+        // TODO set road/lane categories
+
+        // TODO add center lane to quadtree
+        for( const auto& p : adore_lane_ptr->borders.center.interpolated_points )
+        {
+          adore_road_map.quadtree.insert( p );
+        }
+
+
+        adore_road_map.lanes[adore_lane_ptr->id] = adore_lane_ptr;
+      }
+      adore_road_map.roads[adore_road.id] = adore_road;
+    }
+  }
+
+  auto xodr_routing_graph = xodr_map.get_routing_graph();
+
+  for( const auto& edge : xodr_routing_graph.edges )
+  {
+    Connection connection;
+    connection.from_id         = lane_mapping.at( edge.from );
+    connection.to_id           = lane_mapping.at( edge.to );
+    connection.weight          = edge.weight;
+    connection.connection_type = END_TO_START;
+    adore_road_map.lane_graph.add_connection( connection );
+  }
+  return adore_road_map;
+}
+
+std::pair<Border, Border>
+MapLoader::xodr_mesh_to_borders( const odr::Mesh3D& mesh, size_t lane_id, double s0 )
+{
+  Border inner;
+  Border outer;
+  for( size_t i = 0; i < mesh.vertices.size(); ++i )
+  {
+    MapPoint map_point( mesh.vertices[i][0], mesh.vertices[i][1], lane_id );
+    map_point.s = mesh.st_coordinates[i][0] - s0;
+    if( i % 2 == 0 )
+      outer.points.push_back( map_point );
+    else
+      inner.points.push_back( map_point );
+  }
+  return { inner, outer };
+};
 
 } // namespace map
 } // namespace adore
