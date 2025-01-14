@@ -6,6 +6,7 @@
  *
  * Contributors:
  *    Sanath Himasekhar Konthala
+ *    Giovanni Lucente
  ********************************************************************************/
 #pragma once
 #include "adore_map/route.hpp"
@@ -76,6 +77,9 @@ struct TrafficParticipant
 
 // map id to traffic participant
 using TrafficParticipantSet = std::unordered_map<int, TrafficParticipant>;
+
+void update_traffic_participants( TrafficParticipantSet& participants, const TrafficParticipant& new_participant_data);
+void remove_old_participants( TrafficParticipantSet& participants, double max_age, double current_time); 
 
 } // namespace dynamics
 } // namespace adore
