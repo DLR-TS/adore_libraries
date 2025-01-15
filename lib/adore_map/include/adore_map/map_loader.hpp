@@ -40,11 +40,11 @@ class MapLoader
 public:
 
   // Static method to load a Map from an R2S file
-  static Map load_from_r2s_file( const std::string& map_file_location );
+  static Map load_from_r2s_file( const std::string& map_file_location, bool ignore_non_driving = false );
 
-  static Map load_from_xodr_file( const std::string& map_file_location );
+  static Map load_from_xodr_file( const std::string& map_file_location, bool ignore_non_driving = false );
 
-  static Map load_from_file( const std::string& map_file_location );
+  static Map load_from_file( const std::string& map_file_location, bool ignore_non_driving = false );
 
 
 private:
@@ -69,6 +69,8 @@ private:
 
   static void set_quadtree_bounds( Map& map, const std::vector<adore::r2s::BorderDataR2SR>& standard_lines,
                                    const std::vector<adore::r2s::BorderDataR2SL>& lane_boundaries );
+
+  static void set_quadtree_bounds( Map& map, const odr::OpenDriveMap& xodr_map );
 
   static size_t generate_lane_id();
 
