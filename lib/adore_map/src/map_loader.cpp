@@ -17,6 +17,33 @@ namespace adore
 {
 namespace map
 {
+Map
+MapLoader::load_from_file( const std::string& map_file_location, bool ignore_non_driving )
+{
+  // Extract file extension
+  std::string::size_type dot_pos = map_file_location.find_last_of( '.' );
+  if( dot_pos == std::string::npos )
+  {
+    throw std::invalid_argument( "File has no extension: " + map_file_location );
+  }
+
+  // Convert the file extension to lowercase
+  std::string extension = map_file_location.substr( dot_pos + 1 );
+  std::transform( extension.begin(), extension.end(), extension.begin(), []( unsigned char c ) { return std::tolower( c ); } );
+
+  // Decide based on the file extension
+  if( extension == "xodr" )
+  {
+    return load_from_xodr_file( map_file_location, ignore_non_driving );
+  }
+
+  if( extension == "r2sr" )
+  {
+    return load_from_r2s_file( map_file_location, ignore_non_driving );
+  }
+
+  throw std::invalid_argument( "Unsupported file extension: " + extension );
+}
 
 size_t
 MapLoader::generate_lane_id()
@@ -26,7 +53,7 @@ MapLoader::generate_lane_id()
 }
 
 Map
-MapLoader::load_from_r2s_file( const std::string& map_file_location )
+MapLoader::load_from_r2s_file( const std::string& map_file_location, bool ignore_non_driving )
 {
   Map map;
 
@@ -326,11 +353,123 @@ MapLoader::set_quadtree_bounds( Map& map, const std::vector<adore::r2s::BorderDa
     update_min_max( line.x, line.y );
 
   // Apply margin and set boundaries
-  map.quadtree.boundary.x_min = x_min - 10;
-  map.quadtree.boundary.x_max = x_max + 10;
-  map.quadtree.boundary.y_min = y_min - 10;
-  map.quadtree.boundary.y_max = y_max + 10;
+  map.quadtree.boundary.x_min = x_min - 100;
+  map.quadtree.boundary.x_max = x_max + 100;
+  map.quadtree.boundary.y_min = y_min - 100;
+  map.quadtree.boundary.y_max = y_max + 100;
 }
+
+void
+MapLoader::set_quadtree_bounds( Map& map, const odr::OpenDriveMap& xodr_map )
+{
+  // Initialize min/max values to extreme bounds
+  auto [x_min, x_max] = std::make_pair( std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest() );
+  auto [y_min, y_max] = std::make_pair( std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest() );
+
+  for( const auto& [id, road] : xodr_map.id_to_road )
+  {
+    auto start_pt = road.get_surface_pt( 0, 0 );           // this is start of road point as vec3D
+    auto end_pt   = road.get_surface_pt( road.length, 0 ); // this is end of road as vec3D
+    x_min         = std::min( x_min, std::min( start_pt[0], end_pt[0] ) );
+    x_max         = std::max( x_max, std::min( start_pt[0], end_pt[0] ) );
+    y_min         = std::min( y_min, std::min( start_pt[1], end_pt[1] ) );
+    y_max         = std::max( y_max, std::min( start_pt[1], end_pt[1] ) );
+  }
+  // Apply margin and set boundaries
+  map.quadtree.boundary.x_min = x_min - 100;
+  map.quadtree.boundary.x_max = x_max + 100;
+  map.quadtree.boundary.y_min = y_min - 100;
+  map.quadtree.boundary.y_max = y_max + 100;
+}
+
+Map
+MapLoader::load_from_xodr_file( const std::string& filename, bool ignore_non_driving )
+{
+  Map               adore_road_map;
+  odr::OpenDriveMap xodr_map( filename );
+  set_quadtree_bounds( adore_road_map, xodr_map );
+  std::unordered_map<odr::LaneKey, size_t> lane_mapping;
+
+  size_t lane_id_counter = 0;
+  size_t road_id_counter = 0;
+  // Lambda functions for generating unique IDs
+  auto generate_lane_id = [&lane_id_counter]() -> size_t { return ++lane_id_counter; };
+  auto generate_road_id = [&road_id_counter]() -> size_t { return ++road_id_counter; };
+
+  const double mesh_eps = 1.0;
+
+  for( const auto& [xodr_road_id, xodr_road] : xodr_map.id_to_road )
+  {
+    for( const auto& [lanesec_s, lanesec] : xodr_road.s_to_lanesection )
+    {
+      auto road_type = xodr_road.s_to_type.find( lanesec_s ) == xodr_road.s_to_type.end() ? "town" : xodr_road.s_to_type.at( lanesec_s );
+      Road adore_road( xodr_road_id + " s: " + std::to_string( lanesec_s ), generate_road_id(), road_type, xodr_road.left_hand_traffic );
+
+      for( const auto& [lane_id, lane] : lanesec.id_to_lane )
+      {
+        if( lane.id == 0 || ( ignore_non_driving && lane.type != "driving" ) )
+          continue;
+
+        auto lane_mesh = xodr_road.get_lane_mesh( lane, mesh_eps );
+        generate_lane_id();
+
+        auto [inner_border, outer_border] = xodr_mesh_to_borders( lane_mesh, lane_id, lanesec_s );
+
+        std::shared_ptr<Lane> adore_lane_ptr = std::make_shared<Lane>( inner_border, outer_border, lane_id_counter, adore_road.id,
+                                                                       lane.id > 0 );
+
+        adore_lane_ptr->set_type( lane.type, adore_road.category );
+
+        lane_mapping[lane.key] = adore_lane_ptr->id;
+
+        adore_road.lanes.insert( adore_lane_ptr );
+
+        // TODO set road/lane categories
+
+        for( const auto& p : adore_lane_ptr->borders.center.interpolated_points )
+        {
+          adore_road_map.quadtree.insert( p );
+        }
+        adore_road_map.lanes[adore_lane_ptr->id] = adore_lane_ptr;
+      }
+      adore_road_map.roads[adore_road.id] = adore_road;
+    }
+  }
+
+  auto xodr_routing_graph = xodr_map.get_routing_graph();
+
+  for( const auto& edge : xodr_routing_graph.edges )
+  {
+    if( edge.from.lane_id == 0 || edge.to.lane_id == 0 )
+      continue;
+    if( lane_mapping.find( edge.from ) == lane_mapping.end() || lane_mapping.find( edge.to ) == lane_mapping.end() )
+      continue;
+    Connection connection;
+    connection.from_id         = lane_mapping.at( edge.from );
+    connection.to_id           = lane_mapping.at( edge.to );
+    connection.weight          = edge.weight;
+    connection.connection_type = END_TO_START;
+    adore_road_map.lane_graph.add_connection( connection );
+  }
+  return adore_road_map;
+}
+
+std::pair<Border, Border>
+MapLoader::xodr_mesh_to_borders( const odr::Mesh3D& mesh, size_t lane_id, double s0 )
+{
+  Border inner;
+  Border outer;
+  for( size_t i = 0; i < mesh.vertices.size(); ++i )
+  {
+    MapPoint map_point( mesh.vertices[i][0], mesh.vertices[i][1], lane_id );
+    map_point.s = mesh.st_coordinates[i][0] - s0;
+    if( i % 2 == 0 )
+      outer.points.push_back( map_point );
+    else
+      inner.points.push_back( map_point );
+  }
+  return { inner, outer };
+};
 
 } // namespace map
 } // namespace adore

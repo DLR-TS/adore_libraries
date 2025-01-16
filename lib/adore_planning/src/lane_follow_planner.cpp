@@ -278,6 +278,7 @@ LaneFollowPlanner::generate_speed_profile( const std::vector<double>& distances,
       max_speed_allowed = std::min( max_speed_allowed, route_points[i].max_speed.value() );
 
     speeds[i] = std::min( max_speed, max_speed_allowed );
+    speeds[i] = std::max( speeds[i], std::sqrt( speeds[i - 1] * speeds[i - 1] - 2 * desired_deceleration * ds ) );
   }
 
   // Backward pass for deceleration

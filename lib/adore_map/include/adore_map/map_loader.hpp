@@ -18,6 +18,9 @@
 #include "adore_map/map.hpp"
 #include "adore_map/r2s_parser.h"
 
+#include "OpenDriveMap.h"
+#include "RoutingGraph.h"
+
 namespace adore
 {
 namespace map
@@ -37,7 +40,12 @@ class MapLoader
 public:
 
   // Static method to load a Map from an R2S file
-  static Map load_from_r2s_file( const std::string& map_file_location );
+  static Map load_from_r2s_file( const std::string& map_file_location, bool ignore_non_driving = false );
+
+  static Map load_from_xodr_file( const std::string& map_file_location, bool ignore_non_driving = false );
+
+  static Map load_from_file( const std::string& map_file_location, bool ignore_non_driving = false );
+
 
 private:
 
@@ -62,6 +70,8 @@ private:
   static void set_quadtree_bounds( Map& map, const std::vector<adore::r2s::BorderDataR2SR>& standard_lines,
                                    const std::vector<adore::r2s::BorderDataR2SL>& lane_boundaries );
 
+  static void set_quadtree_bounds( Map& map, const odr::OpenDriveMap& xodr_map );
+
   static size_t generate_lane_id();
 
   // Constants
@@ -70,6 +80,8 @@ private:
 
   static RoadGraph                         infer_graph_from_proximity_of_lanes( Map& map, double proximity );
   static std::pair<double, ConnectionType> calculate_lane_distance( const Lane& from_lane, const Lane& to_lane );
+
+  static std::pair<Border, Border> xodr_mesh_to_borders( const odr::Mesh3D& mesh, size_t lane_id, double s0 );
 };
 
 } // namespace map
