@@ -157,10 +157,8 @@ public:
 
     size_t end_lane_id = nearest_end_point->parent_id;
 
-
     // Find the best path between the start and end lanes
     route.lane_id_route = lane_graph.get_best_path( start_lane_id, end_lane_id );
-
 
     // Iterate over the route and process each lane
     for( size_t i = 0; i < route.lane_id_route.size(); ++i )

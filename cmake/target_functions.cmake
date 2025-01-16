@@ -248,7 +248,7 @@ endmacro()
 
 macro(generate_executable_targets folder)
     execute_process(
-        COMMAND grep -rl --include=\*.cpp "int main(" ${folder}
+        COMMAND grep -rlPz --include=*.cpp "int\\s+main\\s*\\(" ${folder}
         RESULT_VARIABLE grep_result
         OUTPUT_VARIABLE grep_output
         )
