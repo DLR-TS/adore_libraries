@@ -20,13 +20,6 @@ namespace map
 Map
 MapLoader::load_from_file( const std::string& map_file_location, bool ignore_non_driving )
 {
-  // Utility function to get the lowercase extension
-  auto to_lower = []( const std::string& str ) {
-    std::string lower_str = str;
-    std::transform( lower_str.begin(), lower_str.end(), lower_str.begin(), []( unsigned char c ) { return std::tolower( c ); } );
-    return lower_str;
-  };
-
   // Extract file extension
   std::string::size_type dot_pos = map_file_location.find_last_of( '.' );
   if( dot_pos == std::string::npos )
@@ -34,14 +27,17 @@ MapLoader::load_from_file( const std::string& map_file_location, bool ignore_non
     throw std::invalid_argument( "File has no extension: " + map_file_location );
   }
 
-  std::string extension = to_lower( map_file_location.substr( dot_pos + 1 ) );
+  // Convert the file extension to lowercase
+  std::string extension = map_file_location.substr( dot_pos + 1 );
+  std::transform( extension.begin(), extension.end(), extension.begin(), []( unsigned char c ) { return std::tolower( c ); } );
 
   // Decide based on the file extension
   if( extension == "xodr" )
   {
     return load_from_xodr_file( map_file_location, ignore_non_driving );
   }
-  else if( extension == "r2sr" )
+
+  if( extension == "r2sr" )
   {
     return load_from_r2s_file( map_file_location, ignore_non_driving );
   }
