@@ -22,13 +22,17 @@ update_traffic_participants( TrafficParticipantSet& participants, const TrafficP
   if (participant_found != participants.end())
   {
     participants[new_participant_data.id].state = new_participant_data.state;
-    if (new_participant_data.goal_point.has_value())
-    {
-      participants[new_participant_data.id].goal_point = new_participant_data.goal_point;
-    }
   }else
   {
     participants[new_participant_data.id] = new_participant_data;
+  }
+  if (new_participant_data.goal_point.has_value())
+  {
+    participants[new_participant_data.id].goal_point = new_participant_data.goal_point.value();
+  }
+  if (participants[new_participant_data.id].trajectory.has_value())
+  {
+    participants[new_participant_data.id].trajectory.reset();
   }
 };
 
