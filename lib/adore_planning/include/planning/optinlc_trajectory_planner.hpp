@@ -102,7 +102,6 @@ private:
   int                 distance_to_add_behind    = 1;
   double              distance_to_goal          = 100.0;
   double              distance_to_object        = 0.0;
-  double              distance_to_object_min    = 10000.0;
   bool                within_lane               = true;
 
   // IDM related members

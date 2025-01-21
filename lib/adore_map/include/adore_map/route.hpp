@@ -54,7 +54,7 @@ struct Route
     if( center_lane.empty() )
     {
       // Route is empty
-      return { true, 0.0 };
+      return { false, std::numeric_limits<double>::max() };
     }
 
     // Initialize minimum distance and perpendicular offset value
@@ -76,7 +76,7 @@ struct Route
           lane_width = latest_map.lanes.at( center_lane[i].parent_id )->get_width( 0.0 );
         }
 
-        s_at_min_distance = center_lane[i].s + min_dist;
+        s_at_min_distance = center_lane[i].s;
         // Direction vector of the section at which the object is
         double dx = center_lane[i + 1].x - center_lane[i].x;
         double dy = center_lane[i + 1].y - center_lane[i].y;
@@ -95,6 +95,8 @@ struct Route
         }
       }
     }
+
+    std::cerr << "s at min dist" << s_at_min_distance << std::endl;
 
 
     return { within_lane, s_at_min_distance };
@@ -247,27 +249,27 @@ struct Route
   }
 
   math::Pose2d
-  get_pose_at_distance_along_route(const double distance)
+  get_pose_at_distance_along_route( const double distance )
   {
-    math::Pose2d pose2d;
+    math::Pose2d  pose2d;
     math::Point2d next_point;
     math::Point2d previous_point;
-    double weight;
-    double eps = 1e-6;
-    for (int i = 1; i < center_lane.size(); i++)
+    double        weight;
+    double        eps = 1e-6;
+    for( int i = 1; i < center_lane.size(); i++ )
     {
-        if (center_lane[i].s > distance)
-        {
-            previous_point.x = center_lane[i - 1].x;
-            previous_point.y = center_lane[i - 1].y;
-            next_point.x = center_lane[i].x;
-            next_point.y = center_lane[i].y;
-            weight = (distance - center_lane[i - 1].s) / (center_lane[i].s - center_lane[i - 1].s + eps);
-            pose2d.x = previous_point.x * (weight - 1) + next_point.x * weight;
-            pose2d.y = previous_point.y * (weight - 1) + next_point.y * weight;
-            pose2d.yaw = std::atan2(next_point.y - previous_point.y, next_point.x - previous_point.x);
-            break;
-        }
+      if( center_lane[i].s > distance )
+      {
+        previous_point.x = center_lane[i - 1].x;
+        previous_point.y = center_lane[i - 1].y;
+        next_point.x     = center_lane[i].x;
+        next_point.y     = center_lane[i].y;
+        weight           = ( distance - center_lane[i - 1].s ) / ( center_lane[i].s - center_lane[i - 1].s + eps );
+        pose2d.x         = previous_point.x * ( weight - 1 ) + next_point.x * weight;
+        pose2d.y         = previous_point.y * ( weight - 1 ) + next_point.y * weight;
+        pose2d.yaw       = std::atan2( next_point.y - previous_point.y, next_point.x - previous_point.x );
+        break;
+      }
     }
     return pose2d;
   }

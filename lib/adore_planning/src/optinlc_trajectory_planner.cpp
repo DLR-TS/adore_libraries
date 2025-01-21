@@ -164,7 +164,6 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
     {
       bad_condition  = true;
       bad_counter   += 1;
-      std::cerr << "\033[0;35m" << "Bad Condition State: YES" << "\033[0m" << std::endl;
       break;
     }
   }
@@ -196,7 +195,6 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   std::chrono::duration<double> elapsed_seconds = end_time - start_time;
 
   // Log cost, time taken, and convergence status
-  std::cerr << "OptiNLCTrajectoryPlanner execution time: " << elapsed_seconds.count() << " seconds\n";
   if( bad_condition == false && bad_counter < 5 )
   {
     previous_trajectory = planned_trajectory;
@@ -280,13 +278,11 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
                                                                   // starting point of optimization was bad
   if( maximum_required_road_length < 0.10 )
   {
-    std::cerr << "ERROR in optinlc trajectory planner, received an invalid view msg" << "\n";
     return route;
   }
 
   if( latest_route.center_lane.size() < 1 )
   {
-    std::cerr << "ERROR in optinlc trajectory planner, received an invalid view msg" << "\n";
     return route;
   }
 
@@ -322,7 +318,6 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
 
   if( route_to_follow.s.size() < 3 )
   {
-    std::cerr << "end of route or invalid route received" << std::endl;
     return route;
   }
   route_to_follow.s[0] = 0.0; // overwriting the first element to 0 (start from ego vehicle)
@@ -337,7 +332,6 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   {
     if( dx[i] == 0.0 || dx.size() < 1 || dy.size() < 1 )
     {
-      std::cerr << "invalid route received" << std::endl;
       return route;
     }
     route_to_follow.psi.push_back( std::atan2( dy[i], dx[i] ) );
@@ -350,7 +344,6 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   std::chrono::duration<double> elapsed_seconds = end_time - start_time;
 
   // Log cost, time taken, and convergence status
-  std::cerr << "piecewise polynomial conversion execution time: " << elapsed_seconds.count() << " seconds\n";
 
   return route;
 }
@@ -403,7 +396,8 @@ double
 OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
                                                   const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
 {
-  double idm_velocity = maximum_velocity;
+  double distance_to_object_min = std::numeric_limits<double>::max();
+  double idm_velocity           = maximum_velocity;
 
   for( const auto& [id, participant] : traffic_participants )
   {
@@ -411,11 +405,13 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
     object_position.x                      = participant.state.x;
     object_position.y                      = participant.state.y;
     auto [within_lane, distance_to_object] = latest_route.get_distance_along_route( latest_map, object_position );
-    if( within_lane && distance_to_object < distance_to_object_min )
+
+    if( within_lane && distance_to_object < distance_to_object_min && distance_to_object > 0.2 )
     {
       distance_to_object_min = distance_to_object;
     }
   }
+
   double distance_for_idm = std::min( distance_to_object_min, distance_to_goal );
 
   double s_star = min_distance_to_vehicle_ahead + current_state.vx * desired_time_headway
@@ -444,7 +440,6 @@ OptiNLCTrajectoryPlanner::calculate_curvature( const std::vector<adore::math::Po
   // Check if there are enough points to calculate curvature
   if( n < 3 )
   {
-    std::cerr << "Not enough points to calculate curvature." << std::endl;
     return curvature;
   }
 
