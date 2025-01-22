@@ -125,15 +125,6 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
       vehicle_command.acceleration = k_speed * error_speed - k_goal_point * distance_to_goal_where_deceleration_starts / goal_point_distance
                                    - k_repulsive_force * distance_to_obstacle_where_deceleration_starts / distance_from_closest_obstacle;
       vehicle_command.steering_angle = k_direction * error_direction + k_yaw * error_yaw + k_distance * error_lateral_distance;
-      
-      if (i == 0)
-      {
-        std::cerr<<"vehicle: "<<id<<"\n";
-        std::cerr<<"speed: "<<current_state.vx<<"\n";
-        std::cerr<<"object distance: "<<distance_from_closest_obstacle<<"\n";
-        std::cerr<<"collision avoidance component: "<<- k_repulsive_force * distance_to_obstacle_where_deceleration_starts / distance_from_closest_obstacle<<"\n";
-        std::cerr<<vehicle_command.acceleration<<"\t"<<vehicle_command.steering_angle<<"\n";
-      }
     
       vehicle_command.clamp_within_limits( limits );
 
