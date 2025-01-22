@@ -67,6 +67,8 @@ RoadGraph::get_best_path( LaneID from, LaneID to ) const
     }
 
     // Explore successors (neighbors)
+    if( to_successors.count( current_road ) == 0 )
+      continue;
     for( const auto& successor : to_successors.at( current_road ) )
     {
       // Find the connection between current_road and successor
