@@ -19,9 +19,9 @@
 
 #include "adore_map/map.hpp"
 
+#include "dynamics/traffic_participant.hpp"
 #include "dynamics/trajectory.hpp"
 #include "dynamics/vehicle_state.hpp"
-#include "dynamics/traffic_participant.hpp"
 
 namespace adore
 {
@@ -36,23 +36,24 @@ public:
   void set_parameters( const std::map<std::string, double>& params );
   void plan_trajectories( dynamics::TrafficParticipantSet& traffic_participant_set, const dynamics::VehicleCommandLimits& limits );
 
-  double       desired_acceleration     = 0.3;
-  double       desired_deceleration     = 0.3;
-  double       max_lateral_acceleration = 0.5;
+  double       desired_acceleration        = 0.3;
+  double       desired_deceleration        = 0.3;
+  double       max_lateral_acceleration    = 0.5;
   int          number_of_integration_steps = 200;
-  double       dt                       = 0.05;
-  const double min_point_distance       = 0.05;
-  double       max_speed                = 2.5;
-  double       wheelbase                = 2.7;
-  double       k_direction              = 0.6;
-  double       k_speed                  = 2.0;
-  double       k_yaw                    = 0.1;
-  double       k_distance               = 0.1;
-  double       k_goal_point             = 1.0;
-  double       k_repulsive_force        = 2.0;
+  double       dt                          = 0.05;
+  const double min_point_distance          = 0.05;
+  double       max_speed                   = 2.5;
+  double       wheelbase                   = 2.7;
+  double       k_direction                 = 0.6;
+  double       k_speed                     = 1.0;
+  double       k_yaw                       = 0.2;
+  double       k_distance                  = 0.2;
+  double       k_goal_point                = 1.0;
+  double       k_repulsive_force           = 2.0;
 
 
 private:
+
   double compute_error_direction( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose );
   double compute_error_lateral_distance( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose );
   double compute_error_speed( const double speed );

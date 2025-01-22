@@ -103,39 +103,38 @@ struct Route
   // Helper functions
   template<typename State>
   double
-  get_s_at_state( const State& state, double& min_distance )
+  get_s_at_state( const State& state )
   {
+    double min_distance = std::numeric_limits<double>::max();
+    if( center_lane.empty() )
     {
-      if( center_lane.empty() )
-      {
-        // Route is empty
-        return 0.0;
-      }
-
-      // Initialize minimum distance and corresponding s value
-      double s_at_min_distance = 0.0;
-
-      // Iterate over the route points to find the nearest point
-      for( const auto& point : center_lane )
-      {
-        double distance = adore::math::distance_2d( state, point );
-        if( distance < min_distance )
-        {
-          min_distance      = distance;
-          s_at_min_distance = point.s;
-        }
-      }
-
-      return s_at_min_distance;
+      // Route is empty
+      return 0.0;
     }
+
+    // Initialize minimum distance and corresponding s value
+    double s_at_min_distance = 0.0;
+
+    // Iterate over the route points to find the nearest point
+    for( const auto& point : center_lane )
+    {
+      double distance = adore::math::distance_2d( state, point );
+      if( distance < min_distance )
+      {
+        min_distance      = distance;
+        s_at_min_distance = point.s;
+      }
+    }
+
+    return s_at_min_distance;
   }
 
   template<typename State>
   void
   trim_route_up_to_state( const State& state )
   {
-    double min_dist = std::numeric_limits<double>::max();
-    double s        = get_s_at_state( state, min_dist );
+
+    double s = get_s_at_state( state );
 
     while( !center_lane.empty() && center_lane.front().s < s )
     {
@@ -247,27 +246,27 @@ struct Route
   }
 
   math::Pose2d
-  get_pose_at_distance_along_route(const double distance)
+  get_pose_at_distance_along_route( const double distance )
   {
-    math::Pose2d pose2d;
+    math::Pose2d  pose2d;
     math::Point2d next_point;
     math::Point2d previous_point;
-    double weight;
-    double eps = 1e-6;
-    for (int i = 1; i < center_lane.size(); i++)
+    double        weight;
+    double        eps = 1e-6;
+    for( int i = 1; i < center_lane.size(); i++ )
     {
-        if (center_lane[i].s > distance)
-        {
-          previous_point.x = center_lane[i - 1].x;
-          previous_point.y = center_lane[i - 1].y;
-          next_point.x = center_lane[i].x;
-          next_point.y = center_lane[i].y;
-          weight = (distance - center_lane[i - 1].s) / (center_lane[i].s - center_lane[i - 1].s + eps);
-          pose2d.x = previous_point.x * (1 - weight) + next_point.x * weight;
-          pose2d.y = previous_point.y * (1 - weight) + next_point.y * weight;
-          pose2d.yaw = std::atan2(next_point.y - previous_point.y, next_point.x - previous_point.x);
-          break;
-        }
+      if( center_lane[i].s > distance )
+      {
+        previous_point.x = center_lane[i - 1].x;
+        previous_point.y = center_lane[i - 1].y;
+        next_point.x     = center_lane[i].x;
+        next_point.y     = center_lane[i].y;
+        weight           = ( distance - center_lane[i - 1].s ) / ( center_lane[i].s - center_lane[i - 1].s + eps );
+        pose2d.x         = previous_point.x * ( 1 - weight ) + next_point.x * weight;
+        pose2d.y         = previous_point.y * ( 1 - weight ) + next_point.y * weight;
+        pose2d.yaw       = std::atan2( next_point.y - previous_point.y, next_point.x - previous_point.x );
+        break;
+      }
     }
     return pose2d;
   }

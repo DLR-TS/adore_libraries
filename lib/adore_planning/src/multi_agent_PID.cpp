@@ -93,12 +93,11 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
       double eps                                            = 1e-6;
       double distance_to_goal_where_deceleration_starts     = 40.0;
       double distance_to_obstacle_where_deceleration_starts = 10.0;
-      double min_distance                                   = 5.0;
       double current_trajectory_s                           = 0.0;
 
       if( participant.route.has_value() )
       {
-        current_trajectory_s = participant.route.value().get_s_at_state( current_state, min_distance );
+        current_trajectory_s = participant.route.value().get_s_at_state( current_state );
       }
       else
       {
@@ -185,7 +184,6 @@ MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticip
   double distance_from_closest_obstacle = std::numeric_limits<double>::max();
   double distance                       = std::numeric_limits<double>::max();
   bool   within_the_lane;
-  double min_distance = 1.5;
 
   for( auto& [id, participant] : traffic_participant_set )
   {
@@ -203,7 +201,7 @@ MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticip
       object_position = participant.state;
     }
     if( participant.route )
-      distance = participant.route.value().get_s_at_state( object_position, min_distance );
+      distance = participant.route.value().get_s_at_state( object_position );
 
     if( distance < 1e-6 )
     {
