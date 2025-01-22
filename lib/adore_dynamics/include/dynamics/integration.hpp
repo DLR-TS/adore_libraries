@@ -35,8 +35,8 @@ euler_step( const VehicleState& state, const VehicleCommand& command, double dt,
   const double& a     = command.acceleration;
 
   // Compute derivatives using the bicycle model
-  double cos_yaw   = std::cos( yaw );
-  double sin_yaw   = std::sin( yaw );
+  double cos_yaw   = std::cos( yaw + 0.5 * delta );
+  double sin_yaw   = std::sin( yaw + 0.5 * delta );
   double tan_delta = std::tan( delta );
 
   double dx   = v * cos_yaw;

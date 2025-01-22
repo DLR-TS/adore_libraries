@@ -42,14 +42,14 @@ public:
   int          number_of_integration_steps = 200;
   double       dt                       = 0.05;
   const double min_point_distance       = 0.05;
-  double       max_speed                = 2.5;
   double       wheelbase                = 2.7;
+  double       max_speed                = 5.0;
   double       k_direction              = 0.6;
-  double       k_speed                  = 2.0;
   double       k_yaw                    = 0.1;
   double       k_distance               = 0.1;
+  double       k_speed                  = 0.5;
   double       k_goal_point             = 1.0;
-  double       k_repulsive_force        = 2.0;
+  double       k_repulsive_force        = 1.0;
 
 
 private:
