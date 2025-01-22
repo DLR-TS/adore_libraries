@@ -64,14 +64,14 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
   ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
-    state_constraints[V] = 0.0;
+    state_constraints[V] = max_reverse_speed;
     return state_constraints;
   } );
 
   ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( std::numeric_limits<double>::infinity() );
-    state_constraints[V] = 13.6;
+    state_constraints[V] = max_forward_speed;
     return state_constraints;
   } );
 
@@ -414,11 +414,18 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
 
   double distance_for_idm = std::min( distance_to_object_min, distance_to_goal );
 
+  if( distance_to_goal < distance_to_object_min && distance_to_goal < 20.0 )
+  {
+    min_distance_to_vehicle_ahead = wheelbase / 2;
+  }
+
   double s_star = min_distance_to_vehicle_ahead + current_state.vx * desired_time_headway
                 + current_state.vx * ( current_state.vx - front_vehicle_velocity ) / ( 2 * sqrt( max_acceleration * max_deceleration ) );
   idm_velocity = current_state.vx
                + max_acceleration
-                   * ( 1 - ( current_state.vx / maximum_velocity ) * ( current_state.vx / maximum_velocity )
+                   * ( 1
+                       - ( current_state.vx / maximum_velocity ) * ( current_state.vx / maximum_velocity )
+                           * ( current_state.vx / maximum_velocity ) * ( current_state.vx / maximum_velocity )
                        - ( s_star / distance_for_idm ) * ( s_star / distance_for_idm ) );
   if( idm_velocity < 0.0 )
   {
