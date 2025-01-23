@@ -64,7 +64,7 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
   ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
-    state_constraints[V] = 0.0;
+    state_constraints[V] = -5.0;
     return state_constraints;
   } );
 
