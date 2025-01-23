@@ -36,42 +36,29 @@ public:
   void set_parameters( const std::map<std::string, double>& params );
   void plan_trajectories( dynamics::TrafficParticipantSet& traffic_participant_set, const dynamics::VehicleCommandLimits& limits );
 
-  double       desired_acceleration        = 0.3;
-  double       desired_deceleration        = 0.3;
+  double       desired_acceleration        = 1.0;
+  double       desired_deceleration        = 1.0;
   double       max_lateral_acceleration    = 0.5;
   int          number_of_integration_steps = 200;
-<<<<<<< HEAD
   double       dt                          = 0.05;
   const double min_point_distance          = 0.05;
-  double       max_speed                   = 2.5;
   double       wheelbase                   = 2.7;
-  double       k_direction                 = 0.6;
-  double       k_speed                     = 1.0;
-  double       k_yaw                       = 0.2;
-  double       k_distance                  = 0.2;
-  double       k_goal_point                = 1.0;
-  double       k_repulsive_force           = 2.0;
-=======
-  double       dt                       = 0.05;
-  const double min_point_distance       = 0.05;
-  double       wheelbase                = 2.7;
-  double       max_speed                = 5.0;
-  double       k_direction              = 0.6;
-  double       k_yaw                    = 0.1;
-  double       k_distance               = 0.1;
-  double       k_speed                  = 0.5;
-  double       k_goal_point             = 1.0;
-  double       k_repulsive_force        = 1.0;
->>>>>>> wip
+  double       max_speed                   = 5.0;
+  double       k_yaw                       = 2.0;
+  double       k_distance                  = 2.0;
+  double       k_speed                     = 0.5;
+  double       k_goal_point                = 10.0;
+  double       k_repulsive_force           = 100.0;
 
 
 private:
 
-  double compute_error_direction( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose );
   double compute_error_lateral_distance( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose );
-  double compute_error_speed( const double speed );
   double compute_error_yaw( const double current_yaw, const double yaw_objective );
-  double compute_distance_from_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int id_vehicle );
+  std::pair<double, double> compute_distance_from_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set,
+                                                                    int                              id_vehicle );
+  double                    compute_idm_velocity( double dist_to_nearest_object, double distance_to_goal, double nearest_object_speed,
+                                                  const dynamics::VehicleStateDynamic& current_state );
 };
 } // namespace planner
 } // namespace adore

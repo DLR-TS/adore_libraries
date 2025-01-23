@@ -44,8 +44,6 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
       max_lateral_acceleration = value;
     if( name == "number_of_integration_steps" )
       number_of_integration_steps = value;
-    if( name == "k_direction" )
-      k_direction = value;
     if( name == "k_speed" )
       k_speed = value;
     if( name == "k_yaw" )
@@ -65,7 +63,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
   // reset trajectories
   for( auto& [id, participant] : traffic_participant_set )
   {
-    participant.trajectory = dynamics::Trajectory();
+    participant.trajectory = dynamics::Trajectory(); // to do only reset controllable participant trajectories
   }
   for( int i = 0; i < number_of_integration_steps; i++ )
   {
@@ -90,17 +88,9 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
         current_state = participant.state;
       }
 
-      double eps                                            = 1e-6;
-      double distance_to_goal_where_deceleration_starts     = 20.0;
-      double distance_to_obstacle_where_deceleration_starts = 10.0;
-      double current_trajectory_s                           = 0.0;
-      double distance_from_closest_obstacle                 = std::numeric_limits<double>::max();
+      double distance_from_closest_obstacle = std::numeric_limits<double>::max();
 
-      if( participant.route.has_value() && participant.route->center_lane.size() > 0 )
-      {
-        current_trajectory_s = participant.route.value().get_s_at_state( current_state );
-      }
-      else
+      if( !participant.route.has_value() || participant.route->center_lane.size() == 0 )
       {
         vehicle_command.acceleration   = 0.0;
         vehicle_command.steering_angle = 0.0;
@@ -109,21 +99,23 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
         continue;
       }
 
-      double target_distance     = current_trajectory_s + 0.5 + 0.1 * current_state.vx;
-      double goal_point_distance = 1e6;
+      double current_trajectory_s = participant.route.value().get_s_at_state( current_state );
+      double target_distance      = current_trajectory_s + 0.5 + 0.1 * current_state.vx;
+      double goal_point_distance  = participant.route.value().center_lane.back().s - current_trajectory_s;
 
-      goal_point_distance = participant.route.value().center_lane.back().s - current_trajectory_s + eps;
+      auto object_dist_and_speed = compute_distance_from_nearest_obstacle( traffic_participant_set, id );
 
-      distance_from_closest_obstacle       = compute_distance_from_nearest_obstacle( traffic_participant_set, id ) + eps;
       math::Pose2d center_lane_target_pose = participant.route->get_pose_at_distance_along_route( target_distance );
-      double       error_direction         = compute_error_direction( current_state, center_lane_target_pose );
       double       error_lateral_distance  = compute_error_lateral_distance( current_state, center_lane_target_pose );
-      double       error_speed             = compute_error_speed( current_state.vx );
       double       error_yaw               = compute_error_yaw( current_state.yaw_angle, center_lane_target_pose.yaw );
 
-      vehicle_command.acceleration = k_speed * error_speed - k_goal_point * distance_to_goal_where_deceleration_starts / goal_point_distance
-                                   - k_repulsive_force * distance_to_obstacle_where_deceleration_starts / distance_from_closest_obstacle;
-      vehicle_command.steering_angle = k_direction * error_direction + k_yaw * error_yaw + k_distance * error_lateral_distance;
+
+      vehicle_command.acceleration = -k_speed
+                                   * ( current_state.vx
+                                       - compute_idm_velocity( object_dist_and_speed.first, goal_point_distance,
+                                                               object_dist_and_speed.second, current_state ) );
+
+      vehicle_command.steering_angle = k_yaw * error_yaw + k_distance * error_lateral_distance;
 
       vehicle_command.clamp_within_limits( limits );
 
@@ -133,6 +125,8 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
       {
         next_state.vx = 0.0;
       }
+      next_state.ax             = vehicle_command.acceleration;
+      next_state.steering_angle = vehicle_command.steering_angle;
 
       participant.trajectory->states.push_back( next_state );
     }
@@ -140,33 +134,48 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 }
 
 double
-MultiAgentPID::compute_error_direction( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose )
-{
-  double err_dir       = 0.0;
-  double psi           = current_state.yaw_angle;
-  double dx            = ( target_pose.x - current_state.x );
-  double dy            = ( target_pose.y - current_state.y );
-  double psi_objective = atan2( dy, dx );
-  err_dir              = psi_objective - psi;
-  err_dir              = math::normalize_angle( err_dir );
-  return err_dir;
-}
-
-double
 MultiAgentPID::compute_error_lateral_distance( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose )
 {
-  double error_distance = 0.0;
-  double dx             = ( target_pose.x - current_state.x );
-  double dy             = ( target_pose.y - current_state.y );
-  error_distance        = dx * cos( current_state.yaw_angle ) + dy * sin( current_state.yaw_angle );
-  return error_distance;
+  double sin_yaw_ref = std::sin( target_pose.yaw );
+  double cos_yaw_ref = std::cos( target_pose.yaw );
+
+  double sin_yaw_current = std::sin( current_state.yaw_angle );
+  double cos_yaw_current = std::cos( current_state.yaw_angle );
+
+  double delta_x = current_state.x - target_pose.x; // Distance in the x direction (longitudinal)
+  double delta_y = current_state.y - target_pose.y; // Distance in the y direction (lateral)
+
+  double error_y = cos_yaw_ref * delta_y - sin_yaw_ref * delta_x; // Lateral error
+
+  return -error_y;
 }
 
 double
-MultiAgentPID::compute_error_speed( const double speed )
+MultiAgentPID::compute_idm_velocity( double dist_to_nearest_object, double distance_to_goal, double nearest_object_speed,
+                                     const dynamics::VehicleStateDynamic& current_state )
 {
-  double error_speed = max_speed - speed;
-  return error_speed;
+  double min_distance_to_vehicle_ahead = 8.0;
+  double desired_time_headway          = 3.0;
+
+  double distance_for_idm = std::min( dist_to_nearest_object, distance_to_goal );
+
+  if( distance_to_goal < dist_to_nearest_object )
+  {
+    min_distance_to_vehicle_ahead = 0;
+  }
+
+  double s_star = min_distance_to_vehicle_ahead + current_state.vx * desired_time_headway
+                + current_state.vx * ( current_state.vx - nearest_object_speed )
+                    / ( 2 * sqrt( desired_acceleration * desired_deceleration ) );
+
+  double idm_velocity = current_state.vx
+                      + desired_acceleration
+                          * ( 1
+                              - ( current_state.vx / max_speed ) * ( current_state.vx / max_speed ) * ( current_state.vx / max_speed )
+                                  * ( current_state.vx / max_speed )
+                              - ( s_star / distance_for_idm ) * ( s_star / distance_for_idm ) );
+
+  return idm_velocity;
 }
 
 double
@@ -178,43 +187,49 @@ MultiAgentPID::compute_error_yaw( const double current_yaw, const double yaw_obj
   return error_yaw;
 }
 
-double
+std::pair<double, double>
 MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int id_vehicle )
 {
   double distance_from_closest_obstacle = std::numeric_limits<double>::max();
-  double distance                       = std::numeric_limits<double>::max();
-  bool   within_the_lane;
+  double speed_of_nearest_obstacle      = 0.0;
 
-  for( auto& [id, participant] : traffic_participant_set )
+  auto& reference_participant = traffic_participant_set[id_vehicle];
+
+  for( auto& [id, other_participant] : traffic_participant_set )
   {
+    double distance = std::numeric_limits<double>::max();
+
     if( id == id_vehicle )
     {
       continue;
     }
-    dynamics::VehicleStateDynamic object_position;
-    if( participant.trajectory.has_value() && participant.trajectory->states.size() > 0 )
+    dynamics::VehicleStateDynamic object_state;
+    if( other_participant.trajectory.has_value() && other_participant.trajectory->states.size() > 0 )
     {
-      object_position = participant.trajectory.value().states.back();
+      object_state = other_participant.trajectory.value().states.back();
     }
     else
     {
-      object_position = participant.state;
+      object_state = other_participant.state;
     }
-    if( participant.route )
-      distance = participant.route.value().get_s_at_state( object_position );
-
-    if( distance < 1e-6 )
+    if( reference_participant.route.has_value() )
     {
-      distance = std::numeric_limits<double>::max();
-      continue;
+      distance  = reference_participant.route.value().get_s_at_state( object_state );
+      distance -= reference_participant.route.value().get_s_at_state( reference_participant.state );
     }
+
+
+    if( distance < 1.0 )
+      continue;
+
 
     if( distance_from_closest_obstacle > distance )
     {
       distance_from_closest_obstacle = distance;
+      speed_of_nearest_obstacle      = object_state.vx;
     }
   }
-  return distance_from_closest_obstacle;
+  return { distance_from_closest_obstacle, speed_of_nearest_obstacle };
 }
 
 } // namespace planner

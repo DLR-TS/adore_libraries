@@ -24,6 +24,8 @@ update_traffic_participants( TrafficParticipantSet& participants, const TrafficP
     return;
   }
 
+  participants[new_participant_data.id].state = new_participant_data.state;
+
   if( new_participant_data.goal_point.has_value() )
   {
     participants[new_participant_data.id].goal_point = new_participant_data.goal_point.value();
