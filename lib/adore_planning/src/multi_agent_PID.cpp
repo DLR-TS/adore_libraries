@@ -97,7 +97,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
       double current_trajectory_s                           = 0.0;
       double distance_from_closest_obstacle = std::numeric_limits<double>::max();
 
-      if( participant.route.has_value() )
+      if( participant.route.has_value() && participant.route->center_lane.size() > 0)
       {
         current_trajectory_s = participant.route.value().get_s_at_state( current_state, min_distance );
       }
@@ -112,9 +112,9 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 
       double target_distance     = current_trajectory_s + 0.5 + 0.1 * current_state.vx;
       double goal_point_distance = 1e6;
-
+      
       goal_point_distance = participant.route.value().center_lane.back().s - current_trajectory_s + eps;
-
+      
       distance_from_closest_obstacle = compute_distance_from_nearest_obstacle( traffic_participant_set, id ) + eps;
       math::Pose2d center_lane_target_pose = participant.route->get_pose_at_distance_along_route( target_distance );
       double       error_direction         = compute_error_direction( current_state, center_lane_target_pose );
@@ -125,7 +125,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
       vehicle_command.acceleration = k_speed * error_speed - k_goal_point * distance_to_goal_where_deceleration_starts / goal_point_distance
                                    - k_repulsive_force * distance_to_obstacle_where_deceleration_starts / distance_from_closest_obstacle;
       vehicle_command.steering_angle = k_direction * error_direction + k_yaw * error_yaw + k_distance * error_lateral_distance;
-    
+      
       vehicle_command.clamp_within_limits( limits );
 
       next_state = dynamics::euler_step( current_state, vehicle_command, dt, wheelbase );
