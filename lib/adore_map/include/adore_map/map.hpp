@@ -182,11 +182,13 @@ public:
   {
     double min_dist   = std::numeric_limits<double>::max();
     auto   near_point = quadtree.get_nearest_point( point, min_dist );
+
+    // std::cerr << "Do I appear in libraries" << std::endl;
+    
     if( !near_point )
       return false;
 
     double width = lanes[near_point->parent_id]->get_width( near_point->s );
-
     if( min_dist < width / 2 )
     {
       return true;
