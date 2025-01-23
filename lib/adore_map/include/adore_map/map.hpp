@@ -181,8 +181,6 @@ public:
     double min_dist   = std::numeric_limits<double>::max();
     auto   near_point = quadtree.get_nearest_point( point, min_dist );
 
-    // std::cerr << "Do I appear in libraries" << std::endl;
-    
     if( !near_point )
       return false;
 

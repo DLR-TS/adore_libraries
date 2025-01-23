@@ -193,6 +193,8 @@ MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticip
   double distance_from_closest_obstacle = std::numeric_limits<double>::max();
   double speed_of_nearest_obstacle      = 0.0;
 
+  double lane_center_offset_max = 3.5;
+
   auto& reference_participant = traffic_participant_set[id_vehicle];
 
   for( auto& [id, other_participant] : traffic_participant_set )
@@ -214,8 +216,13 @@ MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticip
     }
     if( reference_participant.route.has_value() )
     {
-      distance  = reference_participant.route.value().get_s_at_state( object_state );
-      distance -= reference_participant.route.value().get_s_at_state( reference_participant.state );
+      distance              = reference_participant.route.value().get_s_at_state( object_state );
+      auto pose_at_distance = reference_participant.route.value().get_pose_at_distance_along_route( distance );
+
+      distance      -= reference_participant.route.value().get_s_at_state( reference_participant.state );
+      double offset  = math::distance_2d( object_state, pose_at_distance );
+      if( offset > lane_center_offset_max )
+        continue;
     }
 
 
