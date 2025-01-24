@@ -190,53 +190,58 @@ MultiAgentPID::compute_error_yaw( const double current_yaw, const double yaw_obj
 std::pair<double, double>
 MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int id_vehicle )
 {
-  double distance_from_closest_obstacle = std::numeric_limits<double>::max();
-  double speed_of_nearest_obstacle      = 0.0;
+  double           max_distance           = std::numeric_limits<double>::max();
+  constexpr double lane_center_offset_max = 3.5;
 
-  double lane_center_offset_max = 3.5;
+  double closest_obstacle_distance = max_distance;
+  double nearest_obstacle_speed    = 0.0;
 
   auto& reference_participant = traffic_participant_set[id_vehicle];
 
   for( auto& [id, other_participant] : traffic_participant_set )
   {
-    double distance = std::numeric_limits<double>::max();
-
     if( id == id_vehicle )
     {
       continue;
     }
-    dynamics::VehicleStateDynamic object_state;
-    if( other_participant.trajectory.has_value() && other_participant.trajectory->states.size() > 0 )
-    {
-      object_state = other_participant.trajectory.value().states.back();
-    }
-    else
-    {
-      object_state = other_participant.state;
-    }
-    if( reference_participant.route.has_value() )
-    {
-      distance              = reference_participant.route.value().get_s_at_state( object_state );
-      auto pose_at_distance = reference_participant.route.value().get_pose_at_distance_along_route( distance );
 
-      distance      -= reference_participant.route.value().get_s_at_state( reference_participant.state );
-      double offset  = math::distance_2d( object_state, pose_at_distance );
-      if( offset > lane_center_offset_max )
-        continue;
-    }
+    // Get the state of the other participant
+    const auto&                   trajectory   = other_participant.trajectory;
+    dynamics::VehicleStateDynamic object_state = ( trajectory && !trajectory->states.empty() ) ? trajectory->states.back()
+                                                                                               : other_participant.state;
 
-
-    if( distance < 1.0 )
+    // Skip if the reference participant has no route
+    if( !reference_participant.route.has_value() )
+    {
       continue;
+    }
 
+    auto&  route            = reference_participant.route.value();
+    double distance         = route.get_s_at_state( object_state );
+    auto   pose_at_distance = route.get_pose_at_distance_along_route( distance );
 
-    if( distance_from_closest_obstacle > distance )
+    // Adjust distance if trajectory is available
+    if( reference_participant.trajectory && !reference_participant.trajectory->states.empty() )
     {
-      distance_from_closest_obstacle = distance;
-      speed_of_nearest_obstacle      = object_state.vx;
+      distance -= route.get_s_at_state( reference_participant.trajectory->states.back() );
+    }
+
+    // Skip if the offset from the lane center exceeds the maximum allowed
+    double offset = math::distance_2d( object_state, pose_at_distance );
+    if( offset > lane_center_offset_max || distance < 1.0 )
+    {
+      continue;
+    }
+
+    // Update the nearest obstacle if this one is closer
+    if( distance < closest_obstacle_distance )
+    {
+      closest_obstacle_distance = distance;
+      nearest_obstacle_speed    = object_state.vx;
     }
   }
-  return { distance_from_closest_obstacle, speed_of_nearest_obstacle };
+
+  return { closest_obstacle_distance, nearest_obstacle_speed };
 }
 
 } // namespace planner
