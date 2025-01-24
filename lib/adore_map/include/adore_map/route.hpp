@@ -103,7 +103,7 @@ struct Route
   // Helper functions
   template<typename State>
   double
-  get_s_at_state( const State& state )
+  get_s_at_state( const State& state ) const
   {
     double min_distance = std::numeric_limits<double>::max();
     if( center_lane.empty() )
