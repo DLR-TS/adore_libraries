@@ -26,8 +26,8 @@ Lane::get_width( double s ) const
   if( borders.inner.interpolated_points.empty() || borders.outer.interpolated_points.empty() )
     return 0.0;
 
-  adore::map::MapPoint inner_point = borders.inner.get_interpolated_point( s * borders.inner.get_length() / length );
-  adore::map::MapPoint outer_point = borders.outer.get_interpolated_point( s * borders.outer.get_length() / length );
+  adore::map::MapPoint inner_point = borders.inner.get_interpolated_point( s  );
+  adore::map::MapPoint outer_point = borders.outer.get_interpolated_point( s );
 
   return adore::math::distance_2d( inner_point, outer_point );
 }
