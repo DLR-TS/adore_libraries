@@ -184,6 +184,11 @@ public:
     if( !near_point )
       return false;
 
+    if ( lanes.count(near_point->parent_id) == 0)
+    {
+      std::cout << "is_point_on_road failed to get width from lane \n"; 
+      return false;
+    }
     double width = lanes[near_point->parent_id]->get_width( near_point->s );
     if( min_dist < width / 2 )
     {
