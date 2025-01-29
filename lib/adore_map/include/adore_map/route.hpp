@@ -105,39 +105,38 @@ struct Route
   // Helper functions
   template<typename State>
   double
-  get_s_at_state( const State& state, double& min_distance )
+  get_s_at_state( const State& state ) const
   {
+    double min_distance = std::numeric_limits<double>::max();
+    if( center_lane.empty() )
     {
-      if( center_lane.empty() )
-      {
-        // Route is empty
-        return 0.0;
-      }
-
-      // Initialize minimum distance and corresponding s value
-      double s_at_min_distance = 0.0;
-
-      // Iterate over the route points to find the nearest point
-      for( const auto& point : center_lane )
-      {
-        double distance = adore::math::distance_2d( state, point );
-        if( distance < min_distance )
-        {
-          min_distance      = distance;
-          s_at_min_distance = point.s;
-        }
-      }
-
-      return s_at_min_distance;
+      // Route is empty
+      return 0.0;
     }
+
+    // Initialize minimum distance and corresponding s value
+    double s_at_min_distance = 0.0;
+
+    // Iterate over the route points to find the nearest point
+    for( const auto& point : center_lane )
+    {
+      double distance = adore::math::distance_2d( state, point );
+      if( distance < min_distance )
+      {
+        min_distance      = distance;
+        s_at_min_distance = point.s;
+      }
+    }
+
+    return s_at_min_distance;
   }
 
   template<typename State>
   void
   trim_route_up_to_state( const State& state )
   {
-    double min_dist = std::numeric_limits<double>::max();
-    double s        = get_s_at_state( state, min_dist );
+
+    double s = get_s_at_state( state );
 
     while( !center_lane.empty() && center_lane.front().s < s )
     {
