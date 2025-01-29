@@ -96,9 +96,6 @@ struct Route
       }
     }
 
-    std::cerr << "s at min dist" << s_at_min_distance << std::endl;
-
-
     return { within_lane, s_at_min_distance };
   }
 
