@@ -100,7 +100,7 @@ private:
   std::vector<double> curvature_behind;
   double              look_ahead_for_curvature  = 40.0; // 40 meters look ahead for curvature based speed reduction
   double              look_behind_for_curvature = 10.0; // 10 meters look behind for curvature based speed reduction
-  double              curvature_weight          = 6.0;
+  double              curvature_weight          = 4.0;
   int                 distance_to_add_behind    = 1;
   double              distance_to_goal          = 100.0;
   double              distance_to_object        = 0.0;
@@ -110,8 +110,8 @@ private:
   double min_distance_to_vehicle_ahead = 10.0; // 10 meters minimum gap to vehicle in front
   double desired_time_headway          = 1.5;  // 1.5 seconds time headway
   double front_vehicle_velocity        = 0.0;  // temporary, TODO -> Get from traffic participants list
-  double max_acceleration              = 1.5;  // Maximum acceleration 1.5 m/s²
-  double max_deceleration              = 2.0;  // Maximum deceleration 2.0 m/s²
+  double max_acceleration              = 2.0;  // Maximum acceleration 2.0 m/s²
+  double max_deceleration              = 2.5;  // Maximum deceleration 2.5 m/s²
 
   // Variables to store previous commands
   double               last_steering_angle = 0.0;

@@ -133,6 +133,12 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
 
   // Set up reference route
   setup_reference_route( reference_route );
+  if( route_x.breaks.size() < 1 )
+  {
+    dynamics::Trajectory empty_trajectory;
+    std::cerr << "end of route or invalid route received" << std::endl;
+    return empty_trajectory;
+  }
 
   // Set up reference velocity
   setup_reference_velocity( latest_route, current_state, latest_map, traffic_participants );
@@ -385,6 +391,9 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
   double idm_velocity = calculate_idm_velocity( latest_route, current_state, latest_map, traffic_participants );
   reference_velocity  = std::min( reference_velocity, idm_velocity );
 
+  // dynamic reference velocity adjusting based on the error the reference and current velocity
+  reference_velocity = reference_velocity + 1.25 * ( reference_velocity - current_state.vx ); // 25% adjustment
+
   auto current_route_point_max_speed = latest_route.center_lane.front().max_speed;
   if( current_route_point_max_speed.has_value() )
   {
@@ -396,8 +405,9 @@ double
 OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
                                                   const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
 {
-  double distance_to_object_min = std::numeric_limits<double>::max();
-  double idm_velocity           = maximum_velocity;
+  double distance_to_object_min     = std::numeric_limits<double>::max();
+  double distance_to_maintain_ahead = min_distance_to_vehicle_ahead;
+  double idm_velocity               = maximum_velocity;
 
   for( const auto& [id, participant] : traffic_participants )
   {
@@ -416,10 +426,10 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
 
   if( distance_to_goal < distance_to_object_min && distance_to_goal < 20.0 )
   {
-    min_distance_to_vehicle_ahead = wheelbase / 2;
+    distance_to_maintain_ahead = wheelbase / 2;
   }
 
-  double s_star = min_distance_to_vehicle_ahead + current_state.vx * desired_time_headway
+  double s_star = distance_to_maintain_ahead + current_state.vx * desired_time_headway
                 + current_state.vx * ( current_state.vx - front_vehicle_velocity ) / ( 2 * sqrt( max_acceleration * max_deceleration ) );
   idm_velocity = current_state.vx
                + max_acceleration

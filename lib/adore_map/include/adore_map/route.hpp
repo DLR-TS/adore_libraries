@@ -51,7 +51,7 @@ struct Route
   std::pair<bool, double>
   get_distance_along_route( const Map& latest_map, const state& object_position ) const
   {
-    if( center_lane.empty() )
+    if( center_lane.size() < 2 )
     {
       // Route is empty
       return { false, std::numeric_limits<double>::max() };
@@ -60,12 +60,12 @@ struct Route
     // Initialize minimum distance and perpendicular offset value
     double s_at_min_distance    = std::numeric_limits<double>::max();
     double perpendicular_offset = 0.0;
-    bool   within_lane          = true;
+    bool   within_lane          = false;
     double min_dist             = std::numeric_limits<double>::max();
     double lane_width           = 4.0;
 
     // Iterate over the route points to find the nearest point
-    for( size_t i = 0; i < center_lane.size() - 1; i++ )
+    for( size_t i = 0; i < center_lane.size() - 2; i++ )
     {
       double distance = adore::math::distance_2d( object_position, center_lane[i] );
       if( distance < min_dist )
@@ -89,9 +89,9 @@ struct Route
         double denominator = std::sqrt( dx * dx + dy * dy );
 
         perpendicular_offset = numerator / denominator;
-        if( perpendicular_offset > lane_width / 2 )
+        if( perpendicular_offset < lane_width / 2 )
         {
-          within_lane = false;
+          within_lane = true;
         }
       }
     }
