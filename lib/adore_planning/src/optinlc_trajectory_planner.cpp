@@ -392,7 +392,7 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
   reference_velocity  = std::min( reference_velocity, idm_velocity );
 
   // dynamic reference velocity adjusting based on the error the reference and current velocity
-  reference_velocity = reference_velocity + 1.25 * ( reference_velocity - current_state.vx ); // 25% adjustment
+  reference_velocity = reference_velocity + velocity_error_gain * ( reference_velocity - current_state.vx );
 
   auto current_route_point_max_speed = latest_route.center_lane.front().max_speed;
   if( current_route_point_max_speed.has_value() )
@@ -424,7 +424,7 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
 
   double distance_for_idm = std::min( distance_to_object_min, distance_to_goal );
 
-  if( distance_to_goal < distance_to_object_min && distance_to_goal < 20.0 )
+  if( distance_to_goal < distance_to_object_min && distance_to_goal < near_goal_distance )
   {
     distance_to_maintain_ahead = wheelbase / 2;
   }

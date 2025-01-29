@@ -85,13 +85,14 @@ private:
 
   route_to_piecewise_polynomial setup_optimizer_parameters_using_route( const map::Route& latest_route );
 
-  double lateral_weight    = 0.01;
-  double heading_weight    = 0.06;
-  double steering_weight   = 1.0;
-  double dt                = 0.1; // 10ms frequency of the node
-  double wheelbase         = 2.69;
-  double max_forward_speed = 13.6;
-  double max_reverse_speed = -2.0;
+  double lateral_weight     = 0.01;
+  double heading_weight     = 0.06;
+  double steering_weight    = 1.0;
+  double dt                 = 0.1; // 10ms frequency of the node
+  double wheelbase          = 2.69;
+  double max_forward_speed  = 13.6;
+  double max_reverse_speed  = -2.0;
+  double near_goal_distance = 20.0;
 
   // Curvature based velocity calculation members
   double              maximum_velocity   = 5.0; // Maximum set velocity
@@ -112,6 +113,7 @@ private:
   double front_vehicle_velocity        = 0.0;  // temporary, TODO -> Get from traffic participants list
   double max_acceleration              = 2.0;  // Maximum acceleration 2.0 m/s²
   double max_deceleration              = 2.5;  // Maximum deceleration 2.5 m/s²
+  double velocity_error_gain           = 1.25; // gain for adjusting reference velocity
 
   // Variables to store previous commands
   double               last_steering_angle = 0.0;

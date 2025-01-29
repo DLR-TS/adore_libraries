@@ -261,8 +261,8 @@ struct Route
         next_point.x     = center_lane[i].x;
         next_point.y     = center_lane[i].y;
         weight           = ( distance - center_lane[i - 1].s ) / ( center_lane[i].s - center_lane[i - 1].s + eps );
-        pose2d.x         = previous_point.x * ( weight - 1 ) + next_point.x * weight;
-        pose2d.y         = previous_point.y * ( weight - 1 ) + next_point.y * weight;
+        pose2d.x         = previous_point.x * ( 1 - weight ) + next_point.x * weight;
+        pose2d.y         = previous_point.y * ( 1 - weight ) + next_point.y * weight;
         pose2d.yaw       = std::atan2( next_point.y - previous_point.y, next_point.x - previous_point.x );
         break;
       }
