@@ -54,16 +54,18 @@ public:
     Y,
     PSI,
     V,
+    DELTA,
+    dDELTA,
     S,
     L
   };
 
   enum CONTROLS
   {
-    DELTA
+    ddDELTA
   };
 
-  static constexpr int    state_size       = 6;
+  static constexpr int    state_size       = 8;
   static constexpr int    input_size       = 1;
   static constexpr int    control_points   = 30;
   static constexpr double sim_time         = 3.0; // Simulation time for the MPC
@@ -101,7 +103,7 @@ private:
   std::vector<double> curvature_behind;
   double              look_ahead_for_curvature  = 40.0; // 40 meters look ahead for curvature based speed reduction
   double              look_behind_for_curvature = 10.0; // 10 meters look behind for curvature based speed reduction
-  double              curvature_weight          = 4.0;
+  double              curvature_weight          = 2.0;
   int                 distance_to_add_behind    = 1;
   double              distance_to_goal          = 100.0;
   double              distance_to_object        = 0.0;
