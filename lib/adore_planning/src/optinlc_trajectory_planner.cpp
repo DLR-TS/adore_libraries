@@ -21,7 +21,7 @@ namespace planner
 void
 OptiNLCTrajectoryPlanner::set_parameters( const std::map<std::string, double>& params )
 {
-  options.intermediateIntegration = 3;
+  options.intermediateIntegration = 2;
   options.OptiNLC_ACC             = 1e-4;
   options.maxNumberOfIteration    = 500;
   options.OSQP_verbose            = false;
@@ -131,7 +131,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   // Initial state and input
   VECTOR<double, input_size> initial_input = { 0.0 };
   VECTOR<double, state_size> initial_state = {
-    current_state.x, current_state.y, current_state.yaw_angle, current_state.vx, current_state.steering_angle, 0.0, 0.0
+    current_state.x, current_state.y, current_state.yaw_angle, current_state.vx, current_state.steering_angle, 0.0, 0.0, 0.0
   };
 
   // Create an MPC problem (OCP)
@@ -165,6 +165,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   auto   opt_u                   = solver.get_optimal_inputs();
   auto   time                    = solver.getTime();
   double last_objective_function = solver.get_final_objective_function();
+  bad_condition == false;
 
   if( bad_counter > 4 )
   {
@@ -172,7 +173,8 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   }
   for( int i = 0; i < control_points / 2; i++ )
   {
-    if( last_objective_function > 20.0 || opt_x[i * state_size + V] > 14.5 || opt_x[i * state_size + V] < 0.0 )
+    if( last_objective_function > 20.0 || opt_x[i * state_size + V] > 14.5 || opt_x[i * state_size + V] < 0.0
+        || opt_x[i * state_size + dDELTA] > 1.5 )
     {
       bad_condition  = true;
       bad_counter   += 1;
@@ -189,6 +191,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
     state.yaw_angle      = opt_x[i * state_size + PSI];
     state.vx             = opt_x[i * state_size + V];
     state.steering_angle = opt_x[i * state_size + DELTA];
+    state.steering_rate  = opt_x[i * state_size + dDELTA];
     state.time           = time[i];
     if( i < control_points - 1 )
     {
@@ -198,9 +201,8 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
     }
     planned_trajectory.states.push_back( state );
   }
-  planned_trajectory.states[control_points - 1].yaw_rate      = planned_trajectory.states[control_points - 2].yaw_rate;
-  planned_trajectory.states[control_points - 1].ax            = planned_trajectory.states[control_points - 2].ax;
-  planned_trajectory.states[control_points - 1].steering_rate = planned_trajectory.states[control_points - 2].steering_rate;
+  planned_trajectory.states[control_points - 1].yaw_rate = planned_trajectory.states[control_points - 2].yaw_rate;
+  planned_trajectory.states[control_points - 1].ax       = planned_trajectory.states[control_points - 2].ax;
 
   // Calculate time taken
   auto                          end_time        = std::chrono::high_resolution_clock::now();
