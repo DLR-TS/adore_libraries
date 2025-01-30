@@ -165,8 +165,8 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   auto   opt_u                   = solver.get_optimal_inputs();
   auto   time                    = solver.getTime();
   double last_objective_function = solver.get_final_objective_function();
-  bad_condition == false;
 
+  bad_condition = false;
   if( bad_counter > 4 )
   {
     bad_counter = 0;
@@ -209,14 +209,17 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   std::chrono::duration<double> elapsed_seconds = end_time - start_time;
 
   // Log cost, time taken, and convergence status
+  std::cerr << "bad condition state after: " << bad_condition << std::endl;
   if( bad_condition == false && bad_counter < 5 )
   {
     previous_trajectory = planned_trajectory;
     bad_counter         = 0;
+    std::cerr << "bad condition false" << std::endl;
     return planned_trajectory;
   }
   else
   {
+    std::cerr << "bad condition true: " << bad_counter << std::endl;
     return previous_trajectory;
   }
 }
