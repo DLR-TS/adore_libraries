@@ -195,9 +195,8 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
     state.time           = time[i];
     if( i < control_points - 1 )
     {
-      state.yaw_rate      = ( opt_x[( i + 1 ) * state_size + PSI] - opt_x[i * state_size + PSI] ) / options.timeStep;
-      state.ax            = ( opt_x[( i + 1 ) * state_size + V] - opt_x[i * state_size + V] ) / options.timeStep;
-      state.steering_rate = ( opt_x[( i + 1 ) * state_size + DELTA] - opt_x[i * state_size + DELTA] ) / options.timeStep;
+      state.yaw_rate = ( opt_x[( i + 1 ) * state_size + PSI] - opt_x[i * state_size + PSI] ) / options.timeStep;
+      state.ax       = ( opt_x[( i + 1 ) * state_size + V] - opt_x[i * state_size + V] ) / options.timeStep;
     }
     planned_trajectory.states.push_back( state );
   }
@@ -209,17 +208,14 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   std::chrono::duration<double> elapsed_seconds = end_time - start_time;
 
   // Log cost, time taken, and convergence status
-  std::cerr << "bad condition state after: " << bad_condition << std::endl;
   if( bad_condition == false && bad_counter < 5 )
   {
     previous_trajectory = planned_trajectory;
     bad_counter         = 0;
-    std::cerr << "bad condition false" << std::endl;
     return planned_trajectory;
   }
   else
   {
-    std::cerr << "bad condition true: " << bad_counter << std::endl;
     return previous_trajectory;
   }
 }
@@ -236,9 +232,9 @@ OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, s
     derivative[Y]      = state[V] * sin( state[PSI] );                      // Y derivative (velocity * sin(psi))
     derivative[PSI]    = state[V] * tan( state[DELTA] ) / wheelbase;        // PSI derivative (steering angle / wheelbase)
     derivative[V]      = ( 1.0 / tau ) * ( reference_velocity - state[V] ); // Velocity derivative (first order)
-    derivative[DELTA]  = state[dDELTA];
-    derivative[dDELTA] = input[ddDELTA];
-    derivative[S]      = state[V]; // Progress derivate (velocity)
+    derivative[DELTA]  = state[dDELTA];                                     // Steering angle derivative
+    derivative[dDELTA] = input[ddDELTA];                                    // Steering angle rate derivative
+    derivative[S]      = state[V];                                          // Progress derivate (velocity)
 
     // Reference trajectory point at current progress
     int    index             = pp.findIndex( state[S], route_x );
