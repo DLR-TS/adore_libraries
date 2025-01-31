@@ -62,14 +62,14 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
 void
 MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_participant_set, const dynamics::VehicleCommandLimits& limits )
 {
-  for( auto& [id, participant] : traffic_participant_set )
+  for( auto& [id, participant] : traffic_participant_set.participants )
   {
     participant.trajectory = dynamics::Trajectory();
   }
 
   for( int i = 0; i < number_of_integration_steps; ++i )
   {
-    for( auto& [id, participant] : traffic_participant_set )
+    for( auto& [id, participant] : traffic_participant_set.participants )
     {
       dynamics::VehicleStateDynamic next_state;
       dynamics::VehicleStateDynamic current_state = participant.trajectory && !participant.trajectory->states.empty()
@@ -156,9 +156,9 @@ MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticip
   double           closest_distance = std::numeric_limits<double>::max();
   double           obstacle_speed   = 0.0;
 
-  auto& ref_participant = traffic_participant_set[vehicle_id];
+  auto& ref_participant = traffic_participant_set.participants[vehicle_id];
 
-  for( const auto& [id, other_participant] : traffic_participant_set )
+  for( const auto& [id, other_participant] : traffic_participant_set.participants )
   {
     if( id == vehicle_id )
       continue;

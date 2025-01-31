@@ -409,7 +409,7 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
   double distance_to_maintain_ahead = min_distance_to_vehicle_ahead;
   double idm_velocity               = maximum_velocity;
 
-  for( const auto& [id, participant] : traffic_participants )
+  for( const auto& [id, participant] : traffic_participants.participants )
   {
     math::Point2d object_position;
     object_position.x                      = participant.state.x;
