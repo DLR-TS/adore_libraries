@@ -225,7 +225,16 @@ OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, s
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input,
                             VECTOR<double, state_size>& derivative, double current_time, void* user_data ) {
-    const double tau = 1.0; // Higher value means slower acceleration
+    double tau = 2.5; // Higher value means slower acceleration
+
+    if( reference_velocity - state[V] > 0 )
+    {
+      tau = 2.5; // Higher value for smooth acceleration
+    }
+    else
+    {
+      tau = 1.25; // Lower value for quick braking
+    }
 
     // Dynamic model equations
     derivative[X]      = state[V] * cos( state[PSI] );                      // X derivative (velocity * cos(psi))
