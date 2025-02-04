@@ -18,6 +18,9 @@ namespace adore
 {
 namespace math
 {
+
+double to_degrees( double radians );
+double to_radians( double degrees );
 // Normalize heading error to the range [-pi, pi]
 double normalize_angle( double angle );
 
