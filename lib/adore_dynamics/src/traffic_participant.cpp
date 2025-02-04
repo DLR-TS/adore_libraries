@@ -16,8 +16,12 @@ namespace dynamics
 {
 
 void
-update_traffic_participants( TrafficParticipantSet& participants, const TrafficParticipant& new_participant_data )
+TrafficParticipantSet::update_traffic_participants( const TrafficParticipant& new_participant_data )
 {
+  // check if participant is within the validity area
+  if( validity_area && !validity_area->point_inside( new_participant_data.state ) )
+    return;
+
   if( participants.count( new_participant_data.id ) == 0 )
   {
     participants[new_participant_data.id] = new_participant_data;
@@ -41,7 +45,7 @@ update_traffic_participants( TrafficParticipantSet& participants, const TrafficP
 };
 
 void
-remove_old_participants( TrafficParticipantSet& participants, double max_age, double current_time )
+TrafficParticipantSet::remove_old_participants( double max_age, double current_time )
 {
   for( auto it = participants.begin(); it != participants.end(); )
   {

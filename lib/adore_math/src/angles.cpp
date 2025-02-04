@@ -16,14 +16,28 @@ namespace math
 
 
 double
+to_degrees( double radians )
+{
+  double degrees = radians * ( 180.0 / M_PI );
+  degrees        = fmod( degrees, 360.0 );
+  if( degrees < 0 )
+    degrees += 360.0; // Ensure it's within [0, 360)
+  return degrees;
+}
+
+double
+to_radians( double degrees )
+{
+  return normalize_angle( degrees * ( M_PI / 180.0 ) );
+}
+
+double
 normalize_angle( double angle )
 {
-  // Normalize heading error to the range [-pi, pi]
-  while( angle > M_PI )
-    angle -= 2.0 * M_PI;
-  while( angle < -M_PI )
+  angle = fmod( angle + M_PI, 2.0 * M_PI );
+  if( angle < 0 )
     angle += 2.0 * M_PI;
-  return angle;
+  return angle - M_PI;
 }
 } // namespace math
 } // namespace adore
