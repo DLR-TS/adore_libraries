@@ -13,6 +13,8 @@
 #include "adore_math/angles.h"
 
 #include "OdeRK4.hpp"
+#include "dynamics/integration.hpp"
+#include "dynamics/physical_vehicle_parameters.hpp"
 #include "dynamics/vehicle_command.hpp"
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Eigen>
@@ -78,6 +80,8 @@ struct VehicleStateDynamic
     ax( ax ),
     ay( ay )
   {}
+
+  void integrate_up_to_time( double time );
 
   // Member function to convert to VehicleStateSimple
   VehicleStateSimple to_vehicle_state_simple() const;
