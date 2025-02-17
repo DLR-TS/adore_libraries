@@ -49,6 +49,7 @@ public:
   double       k_speed                     = 0.5;
   double       k_goal_point                = 10.0;
   double       k_repulsive_force           = 100.0;
+  double       k_obstacle_avoidance        = 3.0;
 
 
 private:
@@ -59,6 +60,11 @@ private:
                                                                     int                              id_vehicle );
   double                    compute_idm_velocity( double dist_to_nearest_object, double distance_to_goal, double nearest_object_speed,
                                                   const dynamics::VehicleStateDynamic& current_state );
+  double                    compute_avoidance_lateral_error( const dynamics::VehicleStateDynamic& current_state,
+                                                             dynamics::TrafficParticipantSet& traffic_participant_set, const int vehicle_id );
+  std::pair<double, double> compute_desired_and_actual_lateral_deviation_from_obstacle(
+    const dynamics::VehicleStateDynamic& current_state, const dynamics::VehicleStateDynamic& initial_state,
+    const dynamics::VehicleStateDynamic& other_participant_state, map::Route& route );
 };
 } // namespace planner
 } // namespace adore

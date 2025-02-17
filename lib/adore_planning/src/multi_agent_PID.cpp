@@ -18,6 +18,8 @@
 #include "adore_math/curvature.hpp"
 #include "adore_math/point.h"
 #include "adore_math/spline.h"
+#include "adore_math/vector.h"
+#include "adore_math/vector_operations.h"
 
 #include "dynamics/integration.hpp"
 #include "dynamics/vehicle_state.hpp"
@@ -89,15 +91,16 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 
       auto [closest_obstacle_distance, obstacle_speed] = compute_distance_from_nearest_obstacle( traffic_participant_set, id );
 
-      math::Pose2d target_pose   = participant.route->get_pose_at_distance_along_route( target_distance );
-      double       error_lateral = compute_error_lateral_distance( current_state, target_pose );
-      double       error_yaw     = compute_error_yaw( current_state.yaw_angle, target_pose.yaw );
+      math::Pose2d target_pose              = participant.route->get_pose_at_distance_along_route( target_distance );
+      double       error_lateral            = compute_error_lateral_distance( current_state, target_pose );
+      double       error_yaw                = compute_error_yaw( current_state.yaw_angle, target_pose.yaw );
+      double       obstacle_avoidance_error = compute_avoidance_lateral_error( current_state, traffic_participant_set, id );
 
       dynamics::VehicleCommand vehicle_command;
       vehicle_command.acceleration
         = -k_speed
         * ( current_state.vx - compute_idm_velocity( closest_obstacle_distance, goal_point_distance, obstacle_speed, current_state ) );
-      vehicle_command.steering_angle = k_yaw * error_yaw + k_distance * error_lateral;
+      vehicle_command.steering_angle = k_yaw * error_yaw + k_distance * error_lateral; // + k_obstacle_avoidance * obstacle_avoidance_error;
 
       vehicle_command.clamp_within_limits( limits );
 
@@ -191,6 +194,65 @@ MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticip
   }
 
   return { closest_distance, obstacle_speed };
+}
+
+double
+MultiAgentPID::compute_avoidance_lateral_error( const dynamics::VehicleStateDynamic& current_state,
+                                                dynamics::TrafficParticipantSet& traffic_participant_set, int vehicle_id )
+{
+  double obstacle_avoidance_error      = 0.0;
+  auto&  ref_participant               = traffic_participant_set.participants[vehicle_id];
+  auto&  ref_participant_route         = ref_participant.route.value();
+  auto&  ref_participant_initial_state = ref_participant.state;
+
+  for( const auto& [id, other_participant] : traffic_participant_set.participants )
+  {
+    if( id == vehicle_id )
+    {
+      continue;
+    }
+    auto [desired_deviation, actual_deviation] = compute_desired_and_actual_lateral_deviation_from_obstacle( current_state,
+                                                                                                             ref_participant_initial_state,
+                                                                                                             other_participant.state,
+                                                                                                             ref_participant_route );
+    // std::cerr << "desired deviation: " << desired_deviation << " actual deviation: " << actual_deviation << "\n";
+    obstacle_avoidance_error = obstacle_avoidance_error + ( desired_deviation - actual_deviation );
+  }
+
+  return obstacle_avoidance_error;
+}
+
+std::pair<double, double>
+MultiAgentPID::compute_desired_and_actual_lateral_deviation_from_obstacle( const dynamics::VehicleStateDynamic& current_state,
+                                                                           const dynamics::VehicleStateDynamic& initial_state,
+                                                                           const dynamics::VehicleStateDynamic& other_participant_state,
+                                                                           map::Route&                          route )
+{
+  double min_distance_desired_from_object = 1.0;
+  // relative angle of the current state
+  math::Vector2d distance_vector    = math::get_vector_from_a_to_b( current_state, other_participant_state );
+  double         distance_to_object = math::get_l2_norm( distance_vector );
+  auto           pose_center_lane   = route.get_pose_at_distance_along_route( distance_to_object );
+  math::Vector2d center_lane_versor = math::get_versor_from_angle( pose_center_lane.yaw );
+  double         theta              = math::get_angle_between_two_vectors( center_lane_versor, distance_vector );
+
+  // relative angle of the initial state
+  math::Vector2d distance_vector_0    = math::get_vector_from_a_to_b( initial_state, other_participant_state );
+  double         distance_to_object_0 = math::get_l2_norm( distance_vector_0 );
+  double         theta_0              = math::get_angle_between_two_vectors( center_lane_versor, distance_vector_0 );
+
+  // actual deviation from obstacle
+  math::Vector2d perpendicular_center_lane_versor = math::get_perpendicular_versor( center_lane_versor );
+  double         dot_product                      = scalar_product( distance_vector_0, perpendicular_center_lane_versor );
+  double         actual_deviation_from_obstacle   = std::abs( dot_product );
+
+  // fluidodynamics computation of the deviation
+  double desired_deviation_from_obstacle = min_distance_desired_from_object * min_distance_desired_from_object * max_speed
+                                           / ( distance_to_object * std::sin( theta ) )
+                                           * ( ( std::sin( theta ) / distance_to_object ) - ( std::sin( theta_0 ) / distance_to_object_0 ) )
+                                         + actual_deviation_from_obstacle;
+
+  return std::make_pair( desired_deviation_from_obstacle, actual_deviation_from_obstacle );
 }
 
 } // namespace planner
