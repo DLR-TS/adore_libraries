@@ -50,8 +50,8 @@ public:
   double       k_speed                             = 0.5;
   double       k_goal_point                        = 10.0;
   double       k_repulsive_force                   = 100.0;
-  double       k_obstacle_avoidance_longitudinal   = 3.0;
-  double       k_obstacle_avoidance_lateral        = 3.0;
+  double       k_obstacle_avoidance_longitudinal   = 5.0;
+  double       k_obstacle_avoidance_lateral        = 5.0;
 
 
 private:
@@ -67,7 +67,7 @@ private:
                                                                                dynamics::TrafficParticipantSet&     traffic_participant_set,
                                                                                const int                            vehicle_id );
   double                    sigmoid_activation( double d, double d_threshold, double k );
-  std::pair<double, double> compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state, const double current_s,
+  std::pair<double, double> compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state, 
                                                              const dynamics::VehicleStateDynamic& other_participant_state,
                                                              map::Route&                          route );
 };

@@ -232,7 +232,7 @@ MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics
     }
     double distance_to_object                              = math::distance_2d( current_state, other_participant.state );
     double activation_weight                               = sigmoid_activation( distance_to_object, distance_treshold, k_sigmoid );
-    auto [target_longitudinal_speed, target_lateral_speed] = compute_target_speed_components( current_state, current_s,
+    auto [target_longitudinal_speed, target_lateral_speed] = compute_target_speed_components( current_state, 
                                                                                               other_participant.state,
                                                                                               ref_participant_route );
 
@@ -245,26 +245,28 @@ MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics
 }
 
 std::pair<double, double>
-MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state, const double current_s,
+MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state,
                                                 const dynamics::VehicleStateDynamic& other_participant_state, map::Route& route )
 {
-  double object_radius             = 1.5;
+  double object_radius             = 2.0;
   double target_longitudinal_speed = 0.0;
   double target_lateral_speed      = 0.0;
+  double U_speed = max_speed * 0.5;
   // relative angle of the current state
   math::Vector2d distance_vector    = math::get_vector_from_a_to_b( current_state, other_participant_state );
   double         distance_to_object = math::get_l2_norm( distance_vector );
-  auto           pose_center_lane   = route.get_pose_at_distance_along_route( distance_to_object + current_s );
+  double         s_object           = route.get_s_at_state( other_participant_state);
+  auto           pose_center_lane   = route.get_pose_at_distance_along_route( s_object );
   math::Vector2d center_lane_versor = math::get_versor_from_angle( pose_center_lane.yaw );
   double         theta              = math::get_angle_between_two_vectors( center_lane_versor, distance_vector );
 
   // fluidodynamic target longitudinal (with respect to the lane) speed
-  double x_speed_norm = max_speed
-                      - ( ( object_radius ) * (object_radius) *max_speed * std::cos( 2 * theta ) )
+  double x_speed_norm = U_speed
+                      - ( ( object_radius ) * (object_radius) *U_speed * std::cos( 2 * theta ) )
                           / ( ( distance_to_object ) * ( distance_to_object ) );
 
   // fluidodynamic target lateral (with respect to the lane) speed
-  double y_speed_norm = -( ( object_radius ) * (object_radius) *max_speed * std::sin( 2 * theta ) )
+  double y_speed_norm = -( ( object_radius ) * (object_radius) *U_speed * std::sin( 2 * theta ) )
                       / ( ( distance_to_object ) * ( distance_to_object ) );
 
   math::Vector2d x_speed_versor = math::get_versor_from_angle( pose_center_lane.yaw ); // vx is the speed component lane direction
