@@ -23,6 +23,16 @@ namespace math
 {
 
 template<typename Vector2dType, typename OtherVector2dType>
+Vector2d
+vector_sum( const Vector2dType& a, const OtherVector2dType& b )
+{
+  Vector2d a_plus_b;
+  a_plus_b.x = a.x + b.x;
+  a_plus_b.y = a.y + b.y;
+  return a_plus_b;
+}
+
+template<typename Vector2dType, typename OtherVector2dType>
 double
 scalar_product( const Vector2dType& a, const OtherVector2dType& b )
 {
@@ -34,6 +44,16 @@ double
 cross_product( const Vector2dType& a, const OtherVector2dType& b )
 {
   return a.x * b.y - a.y * b.x;
+}
+
+template<typename Vector2dType>
+Vector2d
+vector_scalar_product( const Vector2dType& vector, const double scalar )
+{
+  Vector2d new_vector;
+  new_vector.x = scalar * vector.x;
+  new_vector.y = scalar * vector.y;
+  return new_vector;
 }
 
 template<typename Vector2dType>
@@ -65,12 +85,27 @@ get_vector_from_a_to_b( const PointType a, const OtherPointType b )
 }
 
 Vector2d
+get_vector_from_l2norm_and_angle( const double l2norm, const double angle )
+{
+  Vector2d vector;
+  vector.x = l2norm * std::cos( angle );
+  vector.y = l2norm * std::sin( angle );
+  return vector;
+}
+
+Vector2d
 get_versor_from_angle( const double angle )
 {
   Vector2d vector;
   vector.x = std::cos( angle );
   vector.y = std::sin( angle );
   return vector;
+}
+
+double
+get_angle_from_vector_components( const double v_x, const double v_y )
+{
+  return atan2( v_y, v_x );
 }
 
 template<typename Vector2dType, typename OtherVector2dType>
@@ -105,16 +140,32 @@ Vector2d
 get_perpendicular_versor( const Vector2dType& v, bool clockwise = false )
 {
   Vector2d vector;
+  Vector2d unit_v;
+  double   magnitude = std::sqrt( v.x * v.x + v.y * v.y );
+
+  // Prevent division by zero
+  if( magnitude == 0.0 )
+  {
+    vector.x = 0.0;
+    vector.y = 0.0;
+    return vector; // Return a zero vector if input is zero
+  }
+
+  // Normalize the vector
+  unit_v.x = v.x / magnitude;
+  unit_v.y = v.y / magnitude;
+
   if( clockwise ) // Clockwise (-90°)
   {
-    vector.x = v.y;
-    vector.y = -v.x;
+    vector.x = unit_v.y;
+    vector.y = -unit_v.x;
   }
   else // Counterclockwise (+90°)
   {
-    vector.x = -v.y;
-    vector.y = v.x;
+    vector.x = -unit_v.y;
+    vector.y = unit_v.x;
   }
+
   return vector;
 }
 

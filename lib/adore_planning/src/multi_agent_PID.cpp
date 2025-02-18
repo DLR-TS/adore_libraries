@@ -15,6 +15,8 @@
 
 #include "planning/multi_agent_PID.hpp"
 
+#include <cmath>
+
 #include "adore_math/curvature.hpp"
 #include "adore_math/point.h"
 #include "adore_math/spline.h"
@@ -89,18 +91,33 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
       double target_distance      = current_trajectory_s + 0.5 + 0.1 * current_state.vx;
       double goal_point_distance  = participant.route->center_lane.back().s - current_trajectory_s;
 
-      auto [closest_obstacle_distance, obstacle_speed] = compute_distance_from_nearest_obstacle( traffic_participant_set, id );
+      auto [closest_obstacle_distance, obstacle_speed, offset] = compute_distance_speed_offset_nearest_obstacle( traffic_participant_set,
+                                                                                                                 id );
 
-      math::Pose2d target_pose              = participant.route->get_pose_at_distance_along_route( target_distance );
-      double       error_lateral            = compute_error_lateral_distance( current_state, target_pose );
-      double       error_yaw                = compute_error_yaw( current_state.yaw_angle, target_pose.yaw );
-      double       obstacle_avoidance_error = compute_avoidance_lateral_error( current_state, traffic_participant_set, id );
+      math::Pose2d target_pose   = participant.route->get_pose_at_distance_along_route( target_distance );
+      double       error_lateral = compute_error_lateral_distance( current_state, target_pose );
+      double       error_yaw     = compute_error_yaw( current_state.yaw_angle, target_pose.yaw );
+
+      double obstacle_avoidance_longitudinal_speed_error = 0.0;
+      double obstacle_avoidance_lateral_speed_error      = 0.0;
+
+      if( offset > obstacle_avoidance_offset_threshold )
+      {
+        auto speed_component_errors = compute_obstacle_avoidance_speed_component_errors( current_state, current_trajectory_s,
+                                                                                         traffic_participant_set, id );
+        obstacle_avoidance_longitudinal_speed_error = speed_component_errors.first;
+        obstacle_avoidance_lateral_speed_error      = speed_component_errors.second;
+      }
 
       dynamics::VehicleCommand vehicle_command;
+
       vehicle_command.acceleration
         = -k_speed
-        * ( current_state.vx - compute_idm_velocity( closest_obstacle_distance, goal_point_distance, obstacle_speed, current_state ) );
-      vehicle_command.steering_angle = k_yaw * error_yaw + k_distance * error_lateral; // + k_obstacle_avoidance * obstacle_avoidance_error;
+          * ( current_state.vx - compute_idm_velocity( closest_obstacle_distance, goal_point_distance, obstacle_speed, current_state ) )
+        + k_obstacle_avoidance_longitudinal * obstacle_avoidance_longitudinal_speed_error;
+
+      vehicle_command.steering_angle = k_yaw * error_yaw + k_distance * error_lateral
+                                     + k_obstacle_avoidance_lateral * obstacle_avoidance_lateral_speed_error;
 
       vehicle_command.clamp_within_limits( limits );
 
@@ -151,13 +168,13 @@ MultiAgentPID::compute_error_yaw( double current_yaw, double target_yaw )
   return math::normalize_angle( target_yaw - current_yaw );
 }
 
-std::pair<double, double>
-MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int vehicle_id )
+std::tuple<double, double, double>
+MultiAgentPID::compute_distance_speed_offset_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int vehicle_id )
 {
 
-  constexpr double lane_offset_max  = 3.5;
-  double           closest_distance = std::numeric_limits<double>::max();
-  double           obstacle_speed   = 0.0;
+  double closest_distance = std::numeric_limits<double>::max();
+  double offset           = std::numeric_limits<double>::max();
+  double obstacle_speed   = 0.0;
 
   auto& ref_participant = traffic_participant_set.participants[vehicle_id];
 
@@ -182,8 +199,8 @@ MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticip
       distance -= route.get_s_at_state( ref_participant.trajectory->states.back() );
     }
 
-    double offset = math::distance_2d( object_state, pose_at_distance );
-    if( offset > lane_offset_max || distance < 1.0 )
+    offset = math::distance_2d( object_state, pose_at_distance );
+    if( offset > obstacle_avoidance_offset_threshold || distance < 1.0 )
       continue;
 
     if( distance < closest_distance )
@@ -193,17 +210,19 @@ MultiAgentPID::compute_distance_from_nearest_obstacle( dynamics::TrafficParticip
     }
   }
 
-  return { closest_distance, obstacle_speed };
+  return { closest_distance, obstacle_speed, offset };
 }
 
-double
-MultiAgentPID::compute_avoidance_lateral_error( const dynamics::VehicleStateDynamic& current_state,
-                                                dynamics::TrafficParticipantSet& traffic_participant_set, int vehicle_id )
+std::pair<double, double>
+MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics::VehicleStateDynamic& current_state,
+                                                                  const double                         current_s,
+                                                                  dynamics::TrafficParticipantSet& traffic_participant_set, int vehicle_id )
 {
-  double obstacle_avoidance_error      = 0.0;
-  auto&  ref_participant               = traffic_participant_set.participants[vehicle_id];
-  auto&  ref_participant_route         = ref_participant.route.value();
-  auto&  ref_participant_initial_state = ref_participant.state;
+  double lateral_speed_error      = 0.0;
+  double longitudinal_speed_error = 0.0;
+  double distance_treshold        = 8.0;
+  double k_sigmoid                = 5.0;
+  auto&  ref_participant_route    = traffic_participant_set.participants[vehicle_id].route.value();
 
   for( const auto& [id, other_participant] : traffic_participant_set.participants )
   {
@@ -211,48 +230,68 @@ MultiAgentPID::compute_avoidance_lateral_error( const dynamics::VehicleStateDyna
     {
       continue;
     }
-    auto [desired_deviation, actual_deviation] = compute_desired_and_actual_lateral_deviation_from_obstacle( current_state,
-                                                                                                             ref_participant_initial_state,
-                                                                                                             other_participant.state,
-                                                                                                             ref_participant_route );
-    // std::cerr << "desired deviation: " << desired_deviation << " actual deviation: " << actual_deviation << "\n";
-    obstacle_avoidance_error = obstacle_avoidance_error + ( desired_deviation - actual_deviation );
+    double distance_to_object                              = math::distance_2d( current_state, other_participant.state );
+    double activation_weight                               = sigmoid_activation( distance_to_object, distance_treshold, k_sigmoid );
+    auto [target_longitudinal_speed, target_lateral_speed] = compute_target_speed_components( current_state, current_s,
+                                                                                              other_participant.state,
+                                                                                              ref_participant_route );
+
+    lateral_speed_error      = lateral_speed_error + activation_weight * ( target_lateral_speed - current_state.vy );
+    longitudinal_speed_error = longitudinal_speed_error + activation_weight * ( target_longitudinal_speed - current_state.vx );
   }
 
-  return obstacle_avoidance_error;
+  // std::cerr << "error speed components, long: " << longitudinal_speed_error << " lat: " << lateral_speed_error << "\n";
+  return std::make_pair( longitudinal_speed_error, lateral_speed_error );
 }
 
 std::pair<double, double>
-MultiAgentPID::compute_desired_and_actual_lateral_deviation_from_obstacle( const dynamics::VehicleStateDynamic& current_state,
-                                                                           const dynamics::VehicleStateDynamic& initial_state,
-                                                                           const dynamics::VehicleStateDynamic& other_participant_state,
-                                                                           map::Route&                          route )
+MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state, const double current_s,
+                                                const dynamics::VehicleStateDynamic& other_participant_state, map::Route& route )
 {
-  double min_distance_desired_from_object = 1.0;
+  double object_radius             = 1.5;
+  double target_longitudinal_speed = 0.0;
+  double target_lateral_speed      = 0.0;
   // relative angle of the current state
   math::Vector2d distance_vector    = math::get_vector_from_a_to_b( current_state, other_participant_state );
   double         distance_to_object = math::get_l2_norm( distance_vector );
-  auto           pose_center_lane   = route.get_pose_at_distance_along_route( distance_to_object );
+  auto           pose_center_lane   = route.get_pose_at_distance_along_route( distance_to_object + current_s );
   math::Vector2d center_lane_versor = math::get_versor_from_angle( pose_center_lane.yaw );
   double         theta              = math::get_angle_between_two_vectors( center_lane_versor, distance_vector );
 
-  // relative angle of the initial state
-  math::Vector2d distance_vector_0    = math::get_vector_from_a_to_b( initial_state, other_participant_state );
-  double         distance_to_object_0 = math::get_l2_norm( distance_vector_0 );
-  double         theta_0              = math::get_angle_between_two_vectors( center_lane_versor, distance_vector_0 );
+  // fluidodynamic target longitudinal (with respect to the lane) speed
+  double x_speed_norm = max_speed
+                      - ( ( object_radius ) * (object_radius) *max_speed * std::cos( 2 * theta ) )
+                          / ( ( distance_to_object ) * ( distance_to_object ) );
 
-  // actual deviation from obstacle
-  math::Vector2d perpendicular_center_lane_versor = math::get_perpendicular_versor( center_lane_versor );
-  double         dot_product                      = scalar_product( distance_vector_0, perpendicular_center_lane_versor );
-  double         actual_deviation_from_obstacle   = std::abs( dot_product );
+  // fluidodynamic target lateral (with respect to the lane) speed
+  double y_speed_norm = -( ( object_radius ) * (object_radius) *max_speed * std::sin( 2 * theta ) )
+                      / ( ( distance_to_object ) * ( distance_to_object ) );
 
-  // fluidodynamics computation of the deviation
-  double desired_deviation_from_obstacle = min_distance_desired_from_object * min_distance_desired_from_object * max_speed
-                                           / ( distance_to_object * std::sin( theta ) )
-                                           * ( ( std::sin( theta ) / distance_to_object ) - ( std::sin( theta_0 ) / distance_to_object_0 ) )
-                                         + actual_deviation_from_obstacle;
+  math::Vector2d x_speed_versor = math::get_versor_from_angle( pose_center_lane.yaw ); // vx is the speed component lane direction
+  math::Vector2d y_speed_versor = math::get_perpendicular_versor( x_speed_versor );    // vy is perpendicular to the lane
 
-  return std::make_pair( desired_deviation_from_obstacle, actual_deviation_from_obstacle );
+  math::Vector2d x_speed_vector = math::vector_scalar_product( x_speed_versor, x_speed_norm );
+  math::Vector2d y_speed_vector = math::vector_scalar_product( y_speed_versor, y_speed_norm );
+  math::Vector2d target_speed   = math::vector_sum( x_speed_vector, y_speed_vector );
+
+  // std::cerr << "components, vx: " << x_speed_norm << " vy: " << y_speed_norm << " theta: " << theta << "\n";
+  // std::cerr << " components, vx absolute: " << target_speed.x << " vy absolute: " << target_speed.y << " \n";
+
+  math::Vector2d yaw_versor               = math::get_versor_from_angle( current_state.yaw_angle );
+  math::Vector2d lateral_direction_versor = math::get_perpendicular_versor( yaw_versor );
+
+  target_longitudinal_speed = math::scalar_product( yaw_versor, target_speed );
+  target_lateral_speed      = math::scalar_product( lateral_direction_versor, target_speed );
+
+  // std::cerr << "long speed: " << target_longitudinal_speed << " lateral speed: " << target_lateral_speed << "\n";
+
+  return std::make_pair( target_longitudinal_speed, target_lateral_speed );
+}
+
+double
+MultiAgentPID::sigmoid_activation( double d, double d_threshold, double k )
+{
+  return 1.0 / ( 1.0 + exp( k * ( d - d_threshold ) ) );
 }
 
 } // namespace planner
