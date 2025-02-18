@@ -14,6 +14,17 @@ namespace adore
 namespace math
 {
 
+double
+latlon_deg_to_utm_rad( double latlon_degrees )
+{
+  return to_radians( 90 - latlon_degrees );
+}
+
+double
+utm_rad_to_latlon_deg( double utm_radians )
+{
+  return to_degrees( M_PI / 2 - utm_radians );
+}
 
 double
 to_degrees( double radians )

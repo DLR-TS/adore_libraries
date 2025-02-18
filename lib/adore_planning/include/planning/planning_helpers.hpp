@@ -184,7 +184,7 @@ waypoints_to_trajectory( const dynamics::VehicleStateDynamic& start_state, const
   dynamics::VehicleStateDynamic current_state = start_state;
   double                        s             = 0.0;
 
-  for( double time = 0; time <= 6.0; time += dt )
+  for( double time = 0; time <= cumulative_dist / target_speed; time += dt )
   {
     // Calculate acceleration based on speed error
     double speed_error  = target_speed - current_state.vx;

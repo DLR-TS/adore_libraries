@@ -56,6 +56,8 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
       k_goal_point = value;
     else if( name == "k_repulsive_force" )
       k_repulsive_force = value;
+    else if( name == "dt" )
+      dt = value;
   }
 }
 
