@@ -22,6 +22,7 @@
 #include "adore_math/angles.h"
 #include "adore_math/distance.h"
 
+#include "dynamics/physical_vehicle_model.hpp"
 #include "dynamics/trajectory.hpp"
 
 namespace adore
@@ -61,6 +62,9 @@ private:
 
 
 public:
+
+  dynamics::PhysicalVehicleModel model;
+
 
   dynamics::VehicleCommandLimits limits;
   PID();

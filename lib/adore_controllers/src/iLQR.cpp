@@ -145,8 +145,6 @@ iLQR::set_parameters( const std::map<std::string, double>& params )
       max_iterations = static_cast<int>( value );
     else if( name == "dt" )
       dt = value;
-    else if( name == "wheelbase" )
-      wheelbase = value;
     else if( name == "heading_weight" )
       heading_weight = value;
     else if( name == "vel_weight" )
@@ -205,7 +203,7 @@ iLQR::get_next_vehicle_command( const dynamics::Trajectory& in_trajectory, const
     x_traj.states[0] = current_state;
     for( int t = 0; t < T - 1; ++t )
     {
-      x_traj.states[t + 1] = dynamics::euler_step( x_traj.states[t], u_traj[t], dt, wheelbase );
+      x_traj.states[t + 1] = dynamics::integrate_euler( x_traj.states[t], u_traj[t], dt, model.motion_model );
     }
 
     // Calculate total cost for the current iteration
@@ -325,7 +323,7 @@ iLQR::line_search( double& line_step, const double min_step, const int T, const 
       // Simulate dynamics
       const dynamics::VehicleStateDynamic& xt = x_traj_new.states[t];
 
-      x_traj_new.states[t + 1] = dynamics::euler_step( xt, u_new, dt, wheelbase );
+      x_traj_new.states[t + 1] = dynamics::integrate_euler( x_traj_new.states[t], u_new, dt, model.motion_model );
 
       // Calculate predicted decrease as -grad(J) * du * line_step
       Eigen::VectorXd grad_J  = l_u_list[t]; // Gradient of cost wrt control at time t
@@ -450,12 +448,12 @@ iLQR::extract_dynamics_linearization( const int T, adore::dynamics::Trajectory& 
     A( 1, 2 )         = vx * cos_yaw * dt;
     A( 1, 3 )         = sin_yaw * dt;
     A( 2, 2 )         = 1.0;
-    A( 2, 3 )         = ( tan_delta / wheelbase ) * dt;
+    A( 2, 3 )         = ( tan_delta / model.params.wheelbase ) * dt;
     A( 3, 3 )         = 1.0;
 
     // Control derivatives
     Eigen::MatrixXd B = Eigen::MatrixXd::Zero( n_x, n_u );
-    B( 2, 1 )         = ( vx / wheelbase ) * sec_delta_squared * dt;
+    B( 2, 1 )         = ( vx / model.params.wheelbase ) * sec_delta_squared * dt;
     B( 3, 0 )         = dt;
 
     A_list[t] = A;

@@ -80,7 +80,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 
       if( !participant.route || participant.route->center_lane.empty() )
       {
-        next_state = dynamics::euler_step( current_state, {}, dt, wheelbase );
+        // next_state = dynamics::euler_step( current_state, {}, dt, wheelbase );
         participant.trajectory->states.push_back( next_state );
         continue;
       }
@@ -103,7 +103,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 
       vehicle_command.clamp_within_limits( limits );
 
-      next_state                = dynamics::euler_step( current_state, vehicle_command, dt, wheelbase );
+      // next_state                = dynamics::euler_step( current_state, vehicle_command, dt, wheelbase );
       next_state.vx             = std::max( 0.0, next_state.vx );
       next_state.ax             = vehicle_command.acceleration;
       next_state.steering_angle = vehicle_command.steering_angle;

@@ -10,7 +10,6 @@
  *    Mikkel Skov Maarssø
  *    Marko Mizdrak
  ********************************************************************************/
-#include "OdeRK4.hpp"
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Eigen>
 

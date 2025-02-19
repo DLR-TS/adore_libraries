@@ -12,9 +12,7 @@
  ********************************************************************************/
 #include "adore_math/angles.h"
 
-#include "OdeRK4.hpp"
 #include "dynamics/integration.hpp"
-#include "dynamics/physical_vehicle_parameters.hpp"
 #include "dynamics/vehicle_command.hpp"
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Eigen>
@@ -23,6 +21,7 @@ namespace adore
 {
 namespace dynamics
 {
+
 
 enum GearState
 {
@@ -81,8 +80,6 @@ struct VehicleStateDynamic
     ay( ay )
   {}
 
-  void integrate_up_to_time( double time );
-
   // Member function to convert to VehicleStateSimple
   VehicleStateSimple to_vehicle_state_simple() const;
 
@@ -108,5 +105,51 @@ struct VehicleStateDynamic
 
 VehicleStateDynamic interpolate_states_linear( const VehicleStateDynamic& state1, const VehicleStateDynamic& state2, double alpha );
 
+// Overload operator+ to add two VehicleStateDynamic objects.
+static inline VehicleStateDynamic
+operator+( const VehicleStateDynamic& a, const VehicleStateDynamic& b )
+{
+  VehicleStateDynamic result;
+  result.x              = a.x + b.x;
+  result.y              = a.y + b.y;
+  result.z              = a.z + b.z;
+  result.vx             = a.vx + b.vx;
+  result.vy             = a.vy + b.vy;
+  result.yaw_angle      = a.yaw_angle + b.yaw_angle;
+  result.yaw_rate       = a.yaw_rate + b.yaw_rate;
+  result.steering_angle = a.steering_angle + b.steering_angle;
+  result.steering_rate  = a.steering_rate + b.steering_rate;
+  result.ax             = a.ax + b.ax;
+  result.ay             = a.ay + b.ay;
+  result.time           = a.time + b.time;
+  return result;
+}
+
+// Overload operator* for scalar multiplication: scalar * state.
+static inline VehicleStateDynamic
+operator*( double scalar, const VehicleStateDynamic& state )
+{
+  VehicleStateDynamic result;
+  result.x              = scalar * state.x;
+  result.y              = scalar * state.y;
+  result.z              = scalar * state.z;
+  result.vx             = scalar * state.vx;
+  result.vy             = scalar * state.vy;
+  result.yaw_angle      = scalar * state.yaw_angle;
+  result.yaw_rate       = scalar * state.yaw_rate;
+  result.steering_angle = scalar * state.steering_angle;
+  result.steering_rate  = scalar * state.steering_rate;
+  result.ax             = scalar * state.ax;
+  result.ay             = scalar * state.ay;
+  result.time           = scalar * state.time;
+  return result;
+}
+
+// Overload operator* for state * scalar.
+static inline VehicleStateDynamic
+operator*( const VehicleStateDynamic& state, double scalar )
+{
+  return scalar * state;
+}
 } // namespace dynamics
 } // namespace adore

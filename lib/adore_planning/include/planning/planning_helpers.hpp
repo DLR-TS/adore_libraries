@@ -25,6 +25,7 @@
 #include "adore_math/spline.h"
 
 #include "dynamics/integration.hpp"
+#include "dynamics/physical_vehicle_model.hpp"
 #include "dynamics/vehicle_state.hpp"
 #include <eigen3/Eigen/Dense>
 
@@ -212,7 +213,7 @@ template<typename Line>
 dynamics::Trajectory
 waypoints_to_trajectory( const dynamics::VehicleStateDynamic& start_state, const Line& waypoints, double dt, double target_speed,
                          const dynamics::VehicleCommandLimits& limits, const dynamics::TrafficParticipantSet& traffic_participants,
-                         double k_speed = 0.5, double k_lateral = 1.0, double k_heading = 2.0, double wheelbase = 2.7,
+                         const dynamics::PhysicalVehicleModel& model, double k_speed = 0.5, double k_lateral = 1.0, double k_heading = 2.0,
                          double cg_ratio = 0.5 )
 {
   dynamics::Trajectory trajectory;
@@ -273,7 +274,7 @@ waypoints_to_trajectory( const dynamics::VehicleStateDynamic& start_state, const
     control.clamp_within_limits( limits );
 
     // Update vehicle state using Euler integration
-    current_state                = dynamics::euler_step( current_state, control, dt, wheelbase );
+    current_state                = dynamics::integrate_euler( current_state, control, dt, model.motion_model );
     current_state.ax             = control.acceleration;
     current_state.steering_angle = control.steering_angle;
 
