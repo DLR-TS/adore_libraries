@@ -20,6 +20,7 @@
 #include "adore_math/spline.h"
 
 #include "dynamics/integration.hpp"
+#include "dynamics/motion_models.hpp"
 #include "dynamics/vehicle_state.hpp"
 
 namespace adore
@@ -34,9 +35,7 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
 {
   for( const auto& [name, value] : params )
   {
-    if( name == "wheelbase" )
-      wheelbase = value;
-    else if( name == "max_speed" )
+    if( name == "max_speed" )
       max_speed = value;
     else if( name == "desired_acceleration" )
       desired_acceleration = value;
@@ -58,12 +57,25 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
       k_repulsive_force = value;
     else if( name == "dt" )
       dt = value;
+    else if( name == "min_distance" )
+      min_distance = value;
+    else if( name == "time_headway" )
+      time_headway = value;
   }
 }
 
 void
 MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_participant_set, const dynamics::VehicleCommandLimits& limits )
 {
+
+  // Define a helper that returns a lambda motion model for given vehicle parameters.
+  auto make_kinematic_motion_model = []( const dynamics::PhysicalVehicleParameters& params ) {
+    return [params]( const dynamics::VehicleStateDynamic& state, const dynamics::VehicleCommand& cmd ) -> dynamics::VehicleStateDynamic {
+      return dynamics::kinematic_bicycle_model( state, params, cmd );
+    };
+  };
+
+
   for( auto& [id, participant] : traffic_participant_set.participants )
   {
     participant.trajectory = dynamics::Trajectory();
@@ -80,7 +92,8 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 
       if( !participant.route || participant.route->center_lane.empty() )
       {
-        // next_state = dynamics::euler_step( current_state, {}, dt, wheelbase );
+        next_state = dynamics::integrate_euler( current_state, dynamics::VehicleCommand(), dt,
+                                                make_kinematic_motion_model( participant.physical_parameters ) );
         participant.trajectory->states.push_back( next_state );
         continue;
       }
@@ -103,8 +116,8 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 
       vehicle_command.clamp_within_limits( limits );
 
-      // next_state                = dynamics::euler_step( current_state, vehicle_command, dt, wheelbase );
-      next_state.vx             = std::max( 0.0, next_state.vx );
+      next_state                = dynamics::integrate_euler( current_state, vehicle_command, dt,
+                                                             make_kinematic_motion_model( participant.physical_parameters ) );
       next_state.ax             = vehicle_command.acceleration;
       next_state.steering_angle = vehicle_command.steering_angle;
 
@@ -129,14 +142,13 @@ double
 MultiAgentPID::compute_idm_velocity( double obstacle_distance, double goal_distance, double obstacle_speed,
                                      const dynamics::VehicleStateDynamic& current_state )
 {
-  double min_distance = 8.0;
-  double time_headway = 3.0;
+  double local_min_dist = min_distance;
 
   double effective_distance = std::min( obstacle_distance, goal_distance );
   if( goal_distance < obstacle_distance )
-    min_distance = 0.0;
+    local_min_dist = 0.0;
 
-  double s_star = min_distance + current_state.vx * time_headway
+  double s_star = local_min_dist + current_state.vx * time_headway
                 + current_state.vx * ( current_state.vx - obstacle_speed )
                     / ( 2 * std::sqrt( desired_acceleration * desired_deceleration ) );
 

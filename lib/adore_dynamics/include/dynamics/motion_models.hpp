@@ -54,11 +54,13 @@ dynamic_bicycle_model( const VehicleStateDynamic& state, const PhysicalVehiclePa
   double lambda = 0.0;
   double vyr    = vy - lambda * omega;
 
+  constexpr double gravity = 9.81;
+
   // Compute tire force contributions
-  double fyf_fzf = -params.friction_coefficient * ( params.rear_axle_to_cog / params.wheelbase ) * params.gravity
-                 * params.front_tire_stiffness * ( ( ( vyr ) + params.wheelbase * omega ) / vx - delta );
-  double fyr_fzr = -params.friction_coefficient * ( params.cog_to_front_axle / params.wheelbase ) * params.gravity
-                 * params.rear_tire_stiffness * ( vyr / vx );
+  double fyf_fzf = -params.friction_coefficient * ( params.rear_axle_to_cog / params.wheelbase ) * gravity * params.front_tire_stiffness
+                 * ( ( ( vyr ) + params.wheelbase * omega ) / vx - delta );
+  double fyr_fzr = -params.friction_coefficient * ( params.cog_to_front_axle / params.wheelbase ) * gravity * params.rear_tire_stiffness
+                 * ( vyr / vx );
 
   double ay_dynamic = fyf_fzf + fyr_fzr;
   double domega = ( 1.0 / params.rotational_inertia_div_mass ) * ( params.cog_to_front_axle * fyf_fzf - params.rear_axle_to_cog * fyr_fzr );

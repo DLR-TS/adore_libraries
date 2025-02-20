@@ -49,7 +49,8 @@ public:
   double       k_speed                     = 0.5;
   double       k_goal_point                = 10.0;
   double       k_repulsive_force           = 100.0;
-
+  double       min_distance                = 8.0;
+  double       time_headway                = 3.0;
 
 private:
 
