@@ -123,7 +123,8 @@ OptiNLCTrajectoryPlanner::setup_objective_function( OptiNLC_OCP<double, input_si
 // Public method to get the next vehicle command based on OptiNLCTrajectoryPlanner
 dynamics::Trajectory
 OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                           const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
+                                           const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                           const double time_headway )
 {
   route_to_piecewise_polynomial reference_route = setup_optimizer_parameters_using_route( latest_route );
   auto                          start_time      = std::chrono::high_resolution_clock::now();
@@ -147,7 +148,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   }
 
   // Set up reference velocity
-  setup_reference_velocity( latest_route, current_state, latest_map, traffic_participants );
+  setup_reference_velocity( latest_route, current_state, latest_map, traffic_participants, time_headway );
 
   // Set up dynamic model, objective, and constraints
   setup_dynamic_model( ocp );
@@ -374,8 +375,8 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
 
 void
 OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                                    const map::Map&                        latest_map,
-                                                    const dynamics::TrafficParticipantSet& traffic_participants )
+                                                    const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                                    const double& time_headway )
 {
   std::vector<adore::math::Point2d> path_for_curvature;
   for( int i = 0; i < look_ahead_for_curvature; i++ )
@@ -406,7 +407,7 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
   double max_curvature = *std::max_element( total_curvature.begin(), total_curvature.end() );
   reference_velocity   = maximum_velocity / ( 1 + curvature_weight * max_curvature );
 
-  double idm_velocity = calculate_idm_velocity( latest_route, current_state, latest_map, traffic_participants );
+  double idm_velocity = calculate_idm_velocity( latest_route, current_state, latest_map, traffic_participants, time_headway );
   reference_velocity  = std::min( reference_velocity, idm_velocity );
 
   // dynamic reference velocity adjusting based on the error the reference and current velocity
@@ -421,11 +422,13 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
 
 double
 OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                                  const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
+                                                  const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                                  const double& time_headway )
 {
   double distance_to_object_min     = std::numeric_limits<double>::max();
   double distance_to_maintain_ahead = min_distance_to_vehicle_ahead;
   double idm_velocity               = maximum_velocity;
+  desired_time_headway              = time_headway; // dynamic time headway from decision maker
 
   for( const auto& [id, participant] : traffic_participants.participants )
   {

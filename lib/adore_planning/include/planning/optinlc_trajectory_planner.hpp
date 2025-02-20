@@ -147,15 +147,12 @@ private:
 
   // Helper function to get reference velocity
   void                setup_reference_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                                const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
+                                                const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                                const double& time_headway );
   double              calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                              const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
+                                              const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                              const double& time_headway );
   std::vector<double> calculate_curvature( const std::vector<adore::math::Point2d>& path );
-
-  // Helper function to set up the solver and solve the problem
-  bool solve_mpc( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp,
-                  VECTOR<double, state_size>& initial_state, VECTOR<double, input_size>& initial_input, std::vector<double>& delta_output,
-                  std::vector<double>& acc_output, double current_time );
 
 public:
 
@@ -164,7 +161,8 @@ public:
 
   // Public method to get the next vehicle command based on OptiNLCTrajectoryPlanner
   dynamics::Trajectory plan_trajectory( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                        const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
+                                        const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                        const double time_headway );
 
   void set_parameters( const std::map<std::string, double>& params );
 };
