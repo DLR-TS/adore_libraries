@@ -94,7 +94,7 @@ private:
   double wheelbase          = 2.69;
   double max_forward_speed  = 13.6;
   double max_reverse_speed  = -2.0;
-  double near_goal_distance = 20.0;
+  double near_goal_distance = 50.0;
 
   // Curvature based velocity calculation members
   double              maximum_velocity   = 5.0; // Maximum set velocity

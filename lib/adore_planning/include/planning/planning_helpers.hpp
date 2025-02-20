@@ -244,12 +244,10 @@ waypoints_to_trajectory( const dynamics::VehicleStateDynamic& start_state, const
   dynamics::VehicleStateDynamic current_state = start_state;
   double                        s             = 0.0;
 
-  double closest_obstacle_distance;
-
   for( double time = 0; time <= cumulative_dist / target_speed; time += dt )
   {
     // calculate the distance to closest object
-    closest_obstacle_distance = get_distance_to_nearest_obstacle( spline_x, spline_y, s_vec.back(), traffic_participants );
+    double closest_obstacle_distance = get_distance_to_nearest_obstacle( spline_x, spline_y, s_vec.back(), traffic_participants );
 
     // Calculate acceleration based on speed error
     double speed_error  = target_speed - current_state.vx;
