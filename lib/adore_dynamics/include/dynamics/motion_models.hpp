@@ -29,19 +29,20 @@ dynamic_bicycle_model( const VehicleStateDynamic& state, const PhysicalVehiclePa
   double a_cmd = cmd.acceleration;
   double delta = cmd.steering_angle;
 
-  // Check for near-zero vx to avoid division by zero.
+  // Avoid division by zero
   constexpr double epsilon = 1e-6;
-  if( std::abs( vx ) < epsilon )
+
+  // Prevent reversing: If velocity is near zero and acceleration is negative, stop the vehicle
+  if( vx < epsilon && a_cmd < 0 )
   {
-    // When there's no longitudinal velocity, update only what makes sense.
     ds.x              = 0.0;
     ds.y              = 0.0;
     ds.z              = 0.0;
-    ds.vx             = a_cmd; // We can still integrate acceleration.
+    ds.vx             = 0.0; // No reverse movement
     ds.vy             = 0.0;
-    ds.yaw_angle      = state.yaw_angle;
+    ds.yaw_angle      = 0.0;
     ds.yaw_rate       = 0.0;
-    ds.steering_angle = state.steering_rate;
+    ds.steering_angle = 0.0;
     ds.steering_rate  = 0.0;
     ds.ax             = 0.0;
     ds.ay             = 0.0;
@@ -49,13 +50,11 @@ dynamic_bicycle_model( const VehicleStateDynamic& state, const PhysicalVehiclePa
     return ds;
   }
 
-  // For now, lambda is 0 (as in your original code).
+  // Effective lateral velocity
   double lambda = 0.0;
-  // Effective lateral velocity.
-  double vyr = vy - lambda * state.yaw_rate;
+  double vyr    = vy - lambda * omega;
 
-  // Compute tire force contributions.
-  // Note: Make sure that params.wheelbase is nonzero.
+  // Compute tire force contributions
   double fyf_fzf = -params.friction_coefficient * ( params.rear_axle_to_cog / params.wheelbase ) * params.gravity
                  * params.front_tire_stiffness * ( ( ( vyr ) + params.wheelbase * omega ) / vx - delta );
   double fyr_fzr = -params.friction_coefficient * ( params.cog_to_front_axle / params.wheelbase ) * params.gravity
@@ -64,58 +63,72 @@ dynamic_bicycle_model( const VehicleStateDynamic& state, const PhysicalVehiclePa
   double ay_dynamic = fyf_fzf + fyr_fzr;
   double domega = ( 1.0 / params.rotational_inertia_div_mass ) * ( params.cog_to_front_axle * fyf_fzf - params.rear_axle_to_cog * fyr_fzr );
 
-  // Compute state derivatives.
+  // Compute state derivatives
   ds.x              = std::cos( psi ) * vx - std::sin( psi ) * vy;
-  ds.y              = 0.0; // Lateral position update may be omitted in the dynamic branch.
+  ds.y              = 0.0;
   ds.z              = 0.0;
   ds.vx             = a_cmd;
   ds.vy             = ay_dynamic;
   ds.yaw_angle      = omega;
   ds.yaw_rate       = domega;
   ds.steering_angle = state.steering_angle;
-  ds.steering_rate  = 0.0; // No higher order steering dynamics modelled.
+  ds.steering_rate  = 0.0;
   ds.ax             = 0.0;
   ds.ay             = 0.0;
-  ds.time           = 1.0; // time derivative is 1.
+  ds.time           = 1.0;
   return ds;
 }
 
-//
-// Kinematic Bicycle params
-// This params uses geometric relationships to compute the yaw rate and positions.
-// It is typically used at lower speeds when dynamics effects are less pronounced.
-//
 static inline VehicleStateDynamic
 kinematic_bicycle_model( const VehicleStateDynamic& state, const PhysicalVehicleParameters& params, const VehicleCommand& cmd )
 {
   VehicleStateDynamic ds;
 
-  // Unpack state.
+  // Unpack state
   double psi = state.yaw_angle;
   double vx  = state.vx;
   double vy  = state.vy;
 
-  // Use commanded acceleration.
-  double a_cmd = cmd.acceleration;
-  double delta = cmd.steering_angle;
+  // Use commanded acceleration
+  double           a_cmd   = cmd.acceleration;
+  double           delta   = cmd.steering_angle;
+  constexpr double epsilon = 1e-6;
 
-  // Derivatives from kinematic relationships.
+  // Prevent reversing: If velocity is near zero and acceleration is negative, stop the vehicle
+  if( vx < epsilon && a_cmd < 0 )
+  {
+    ds.x              = 0.0;
+    ds.y              = 0.0;
+    ds.z              = 0.0;
+    ds.vx             = 0.0;
+    ds.vy             = 0.0;
+    ds.yaw_angle      = 0.0;
+    ds.yaw_rate       = 0.0;
+    ds.steering_angle = 0.0;
+    ds.steering_rate  = 0.0;
+    ds.ax             = 0.0;
+    ds.ay             = 0.0;
+    ds.time           = 1.0;
+    return ds;
+  }
+
+  // Compute kinematic updates
   ds.x         = std::cos( psi ) * vx;
   ds.y         = std::sin( psi ) * vx;
   ds.z         = 0.0;
   ds.vx        = a_cmd;
-  ds.vy        = 0.0; // Lateral acceleration is not paramsed explicitly.
+  ds.vy        = 0.0;
   ds.yaw_angle = vx * std::tan( delta ) / params.wheelbase;
   ds.yaw_rate  = 0.0;
 
-  // Simple first-order steering dynamics:
-  ds.steering_angle = state.steering_rate; // derivative of steering angle is current rate
-  ds.steering_rate  = 0.0;                 // Not modelled
-
-  ds.ax   = 0.0;
-  ds.ay   = 0.0;
-  ds.time = 1.0;
+  // Simple steering dynamics
+  ds.steering_angle = state.steering_rate;
+  ds.steering_rate  = 0.0;
+  ds.ax             = 0.0;
+  ds.ay             = 0.0;
+  ds.time           = 1.0;
   return ds;
 }
+
 } // namespace dynamics
 } // namespace adore
