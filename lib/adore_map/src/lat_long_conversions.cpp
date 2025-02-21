@@ -30,10 +30,8 @@
 
 
 #define QUOTE( ... ) #__VA_ARGS__
-const char* UTM_TO_LAT_LONG_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE(
-  python3 - c "from utm import to_latlon; print(to_latlon(%.2f, %.2f, %d, '%s'))" );
-const char* LAT_LONG_TO_UTM_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE( python3
-                                                                       - c "from utm import from_latlon; print(from_latlon(%.6f, %.6f))" );
+const char* UTM_TO_LAT_LONG_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE(python3 -c "from utm import to_latlon; print(to_latlon(%.2f, %.2f, %d, '%s'))");
+const char* LAT_LONG_TO_UTM_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE(python3 -c "from utm import from_latlon; print(from_latlon(%.6f, %.6f))");
 
 namespace adore
 {
@@ -156,6 +154,7 @@ convert_lat_lon_to_utm( double lat, double lon )
 
     output[0] = output_coord.enu.e;                // UTM X coordinate
     output[1] = output_coord.enu.n;                // UTM Y coordinate
+    //std::cerr << "utm x: " << output[0] << " utm y: " << output[1] << std::endl;
     output[2] = static_cast<double>( utm_zone );   // UTM zone as double
     output[3] = static_cast<double>( utm_letter ); // UTM letter as double
 
