@@ -347,6 +347,9 @@ Border::get_interpolated_point( double s ) const
 
     auto& interpolation_points = ( points.size() > 0 ) ? points : interpolated_points;
 
+    if( interpolation_points.size() == 1 )
+      return interpolated_points[0];
+
     if( s <= interpolation_points.front().s )
       return interpolation_points.front();
     if( s >= interpolation_points.back().s )
@@ -372,7 +375,6 @@ Border::get_interpolated_point( double s ) const
         return interpolated_point;
       }
     }
-    // TODO
     // If s is beyond the total length due to numerical errors
     return points.back();
   }
