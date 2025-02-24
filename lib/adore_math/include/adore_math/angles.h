@@ -18,8 +18,14 @@ namespace adore
 {
 namespace math
 {
+
+double to_degrees( double radians );
+double to_radians( double degrees );
 // Normalize heading error to the range [-pi, pi]
 double normalize_angle( double angle );
+
+double latlon_deg_to_utm_rad( double latlon_degrees );
+double utm_rad_to_latlon_deg( double utm_radians );
 
 template<typename PointType>
 double

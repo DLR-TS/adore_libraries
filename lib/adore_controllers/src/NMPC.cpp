@@ -118,6 +118,12 @@ NMPC::setup_objective_function( OptiNLC_OCP<double, NMPC::input_size, NMPC::stat
     } );
 }
 
+double
+NMPC::get_objective_function()
+{
+  return objective_function;
+}
+
 // Helper function to set up the solver and solve the problem
 bool
 NMPC::solve_mpc( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_size, 0, NMPC::control_points>& ocp,
@@ -140,6 +146,7 @@ NMPC::solve_mpc( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_size, 0, NMPC
     acc_output.push_back( opt_u[i * input_size + 1] );
   }
 
+  objective_function = solver.get_final_objective_function();
 
   return solver.get_final_objective_function() <= 40.0;
 }
@@ -171,7 +178,29 @@ NMPC::get_next_vehicle_command( const dynamics::Trajectory& trajectory, const dy
 
   return_command.steering_angle = delta_output[0];
   return_command.acceleration   = acc_output[0];
+
+  if( counter > 4 )
+  {
+    counter = 0;
+  }
+
+  if( objective_function < 5.0 && counter < 5 )
+  {
+    counter                       = 0;
+    last_acceleration             = acc_output;
+    last_steering_angle           = delta_output;
+    return_command.steering_angle = delta_output[0];
+    return_command.acceleration   = acc_output[0];
+  }
+  else
+  {
+    counter++;
+    return_command.steering_angle = last_steering_angle[counter];
+    return_command.acceleration   = last_acceleration[counter];
+  }
+  std::cerr << "objective function: " << objective_function << " counter: " << counter << std::endl;
   std::cerr << "opt out steer: " << delta_output[0] << "     acc: " << acc_output[0] << std::endl;
+  std::cerr << "command out steer: " << return_command.steering_angle << "     acc: " << return_command.acceleration << std::endl;
 
   // Handle bad conditions if the solution is not good
   if( !success )
@@ -207,9 +236,9 @@ NMPC::setup_dynamic_model( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_siz
                                + cos( state[PSI] ) * ( state[Y] - reference_point.y );
 
     derivative[L] = ( state[V] - reference_point.vx ) * ( state[V] - reference_point.vx )
-                  + 2 * ( state[X] - reference_point.x ) * ( state[X] - reference_point.x ) + input[DELTA] * input[DELTA]
-                  + 2 * ( state[Y] - reference_point.y ) * ( state[Y] - reference_point.y )
-                  + 1 * atan2( sin( reference_point.yaw_angle - state[PSI] ), cos( reference_point.yaw_angle - state[PSI] ) )
+                  + 3 * ( state[X] - reference_point.x ) * ( state[X] - reference_point.x ) + input[DELTA] * input[DELTA]
+                  + 3 * ( state[Y] - reference_point.y ) * ( state[Y] - reference_point.y )
+                  + 4 * atan2( sin( reference_point.yaw_angle - state[PSI] ), cos( reference_point.yaw_angle - state[PSI] ) )
                       * atan2( sin( reference_point.yaw_angle - state[PSI] ), cos( reference_point.yaw_angle - state[PSI] ) );
   } );
 }
