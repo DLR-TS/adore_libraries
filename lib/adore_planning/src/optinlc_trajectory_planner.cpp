@@ -233,7 +233,7 @@ OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, s
     }
     else
     {
-      tau = 1.25; // Lower value for quick braking
+      tau = 2.0; // Lower value for quick braking
     }
 
     // Dynamic model equations

@@ -47,7 +47,7 @@ private:
   double dt                            = 0.05;
   double steering_comfort              = 2.5; // Comfort limit for steering change
   double acceleration_comfort          = 2.5; // Comfort limit for acceleration change
-  double lookahead_time                = 0.2;
+  double lookahead_time                = 0.5;
   double dt_trajectory                 = 0.1; // dt between points in the trajectory
 
   // State variables for integral control
