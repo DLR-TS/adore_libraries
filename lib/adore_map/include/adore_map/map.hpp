@@ -132,7 +132,7 @@ public:
 
   template<typename StartPoint, typename EndPoint>
   Route
-  get_route( const StartPoint& start, const EndPoint& end )
+  get_route( const StartPoint& start, const EndPoint& end ) const
   {
     Route route;
     route.start.x       = start.x;
@@ -164,11 +164,11 @@ public:
     for( size_t i = 0; i < route.lane_id_route.size(); ++i )
     {
       const auto& current_lane = route.lane_id_route[i];
-      auto        lane         = lanes[current_lane];
+      auto        lane         = lanes.at( current_lane );
 
       auto lane_points = lane->borders.center;
 
-      route.add_lane_center( lane_points, nearest_start_point, nearest_end_point, lanes[current_lane]->left_of_reference );
+      route.add_lane_center( lane_points, nearest_start_point, nearest_end_point, lane->left_of_reference );
     }
     route.interpolate_center_lane( ROUTE_INTERPOLATION_DIST );
     return route;
@@ -180,11 +180,11 @@ public:
   {
     double min_dist   = std::numeric_limits<double>::max();
     auto   near_point = quadtree.get_nearest_point( point, min_dist );
+
     if( !near_point )
       return false;
 
     double width = lanes[near_point->parent_id]->get_width( near_point->s );
-
     if( min_dist < width / 2 )
     {
       return true;

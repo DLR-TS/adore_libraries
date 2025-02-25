@@ -149,11 +149,71 @@ calculate_errors( const dynamics::VehicleStateDynamic& state, double target_x, d
   return { lateral_error, heading_error };
 }
 
+static double
+compute_idm_velocity( double obstacle_distance, double goal_distance, double obstacle_speed,
+                      const dynamics::VehicleStateDynamic& current_state )
+{
+  double max_speed            = 2.0;
+  double desired_acceleration = 2.0;
+  double desired_deceleration = 2.0;
+  double min_distance         = 8.0;
+  double time_headway         = 3.0;
+
+  double effective_distance = std::min( obstacle_distance, goal_distance );
+  if( goal_distance < obstacle_distance )
+    min_distance = 0.0;
+
+  double s_star = min_distance + current_state.vx * time_headway
+                + current_state.vx * ( current_state.vx - obstacle_speed )
+                    / ( 2 * std::sqrt( desired_acceleration * desired_deceleration ) );
+
+  return current_state.vx
+       + desired_acceleration * ( 1 - std::pow( current_state.vx / max_speed, 4 ) - std::pow( s_star / effective_distance, 2 ) );
+}
+
+// compute the distance to the nearest object, if within a certain radius from the center of the waypoint lane, considering obstacle fixed
+static double
+get_distance_to_nearest_obstacle( const tk::spline& waypoint_spline_x, const tk::spline& waypoint_spline_y, const double waypoints_length,
+                                  const dynamics::TrafficParticipantSet& traffic_participants )
+{
+  double ds                     = 0.1; // check step size
+  int    number_of_steps        = (int) waypoints_length / ds;
+  double min_distance_to_object = std::numeric_limits<double>::max();
+  double treshold_within_lane   = 1.0;
+
+  for( const auto& [id, participant] : traffic_participants.participants )
+  {
+    math::Point2d object_position;
+    object_position.x = participant.state.x;
+    object_position.y = participant.state.y;
+    double s          = 0.0;
+
+    for( int i = 0; i < number_of_steps; i++ )
+    {
+      math::Point2d waypoint_position;
+      waypoint_position.x = waypoint_spline_x( s );
+      waypoint_position.y = waypoint_spline_y( s );
+
+      double object_distance = adore::math::distance_2d( object_position, waypoint_position );
+
+      if( object_distance < treshold_within_lane && s < min_distance_to_object )
+      {
+        min_distance_to_object = s;
+        break;
+      }
+
+      s = ( i + 1 ) * ds;
+    }
+  }
+  return min_distance_to_object;
+}
+
 template<typename Line>
 dynamics::Trajectory
 waypoints_to_trajectory( const dynamics::VehicleStateDynamic& start_state, const Line& waypoints, double dt, double target_speed,
-                         const dynamics::VehicleCommandLimits& limits, double k_speed = 0.5, double k_lateral = 1.0, double k_heading = 2.0,
-                         double wheelbase = 2.7, double cg_ratio = 0.5 )
+                         const dynamics::VehicleCommandLimits& limits, const dynamics::TrafficParticipantSet& traffic_participants,
+                         double k_speed = 0.5, double k_lateral = 1.0, double k_heading = 2.0, double wheelbase = 2.7,
+                         double cg_ratio = 0.5 )
 {
   dynamics::Trajectory trajectory;
   trajectory.states.push_back( start_state );
@@ -184,11 +244,15 @@ waypoints_to_trajectory( const dynamics::VehicleStateDynamic& start_state, const
   dynamics::VehicleStateDynamic current_state = start_state;
   double                        s             = 0.0;
 
-  for( double time = 0; time <= 6.0; time += dt )
+  for( double time = 0; time <= cumulative_dist / target_speed; time += dt )
   {
+    // calculate the distance to closest object
+    double closest_obstacle_distance = get_distance_to_nearest_obstacle( spline_x, spline_y, s_vec.back(), traffic_participants );
+
     // Calculate acceleration based on speed error
     double speed_error  = target_speed - current_state.vx;
-    double acceleration = k_speed * speed_error;
+    double acceleration = -k_speed
+                        * ( current_state.vx - compute_idm_velocity( closest_obstacle_distance, s_vec.back(), 0.0, current_state ) );
 
     dynamics::VehicleCommand control;
     control.acceleration = acceleration;
@@ -219,6 +283,7 @@ waypoints_to_trajectory( const dynamics::VehicleStateDynamic& start_state, const
 
   return trajectory;
 }
+
 } // namespace planner
 
 } // namespace adore
