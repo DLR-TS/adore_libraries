@@ -250,10 +250,10 @@ std::pair<double, double>
 MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state,
                                                 const dynamics::VehicleStateDynamic& other_participant_state, map::Route& route )
 {
-  double object_radius             = 2.0;
+  double object_radius             = 2.5;
   double target_longitudinal_speed = 0.0;
   double target_lateral_speed      = 0.0;
-  double U_speed = max_speed * 0.5;
+  double U_speed = 3.0;
   // relative angle of the current state
   math::Vector2d distance_vector    = math::get_vector_from_a_to_b( current_state, other_participant_state );
   double         distance_to_object = math::get_l2_norm( distance_vector );
