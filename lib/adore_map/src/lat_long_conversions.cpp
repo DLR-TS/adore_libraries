@@ -28,12 +28,13 @@
 #include <vector>
 #define DEG_TO_RAD ( M_PI / 180.0 )
 
+#include <chrono>
+#include <thread>
+#include <mutex>
 
 #define QUOTE( ... ) #__VA_ARGS__
-const char* UTM_TO_LAT_LONG_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE(
-  python3 - c "from utm import to_latlon; print(to_latlon(%.2f, %.2f, %d, '%s'))" );
-const char* LAT_LONG_TO_UTM_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE( python3
-                                                                       - c "from utm import from_latlon; print(from_latlon(%.6f, %.6f))" );
+const char* UTM_TO_LAT_LONG_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE(python3 -c "from utm import to_latlon; print(to_latlon(%.2f, %.2f, %d, '%s'))");
+const char* LAT_LONG_TO_UTM_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE(python3 -c "from utm import from_latlon; print(from_latlon(%.6f, %.6f))");
 
 namespace adore
 {
@@ -99,9 +100,14 @@ calculate_utm_zone_letter( double lat )
   return utm_zone_letters[zone_index];
 }
 
+
+std::mutex proj_mutex;
+
 std::vector<double>
 convert_lat_lon_to_utm( double lat, double lon )
 {
+  std::lock_guard<std::mutex> lock(proj_mutex);
+  
   std::vector<double> output( 4, 0.0 ); // [utm_x, utm_y, utm_zone, utm_letter]
   try
   {
@@ -139,7 +145,7 @@ convert_lat_lon_to_utm( double lat, double lon )
       throw std::runtime_error( "Failed to create PROJ latlong projection." );
     }
 
-    PJ_COORD input;
+    PJ_COORD input = {0};
     input.lp.lam = lon * DEG_TO_RAD;
     input.lp.phi = lat * DEG_TO_RAD;
 
