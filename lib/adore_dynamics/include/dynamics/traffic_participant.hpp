@@ -6,14 +6,12 @@
  *
  * Contributors:
  *    Sanath Himasekhar Konthala
- *    Giovanni Lucente
  ********************************************************************************/
 #pragma once
 #include "adore_map/route.hpp"
 #include "adore_math/angles.h"
 #include "adore_math/distance.h"
 #include "adore_math/point.h"
-#include "adore_math/polygon.h"
 #include "adore_math/shape.h"
 
 #include "dynamics/trajectory.hpp"
@@ -76,14 +74,8 @@ struct TrafficParticipant
   std::optional<map::Route>    route      = std::nullopt; // Route information
 };
 
-struct TrafficParticipantSet
-{
-  std::unordered_map<int, TrafficParticipant> participants;
-  std::optional<math::Polygon2d>              validity_area;
-  void                                        update_traffic_participants( const TrafficParticipant& new_participant_data );
-  void                                        remove_old_participants( double max_age, double current_time );
-};
-
+// map id to traffic participant
+using TrafficParticipantSet = std::unordered_map<int, TrafficParticipant>;
 
 } // namespace dynamics
 } // namespace adore

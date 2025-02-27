@@ -24,7 +24,6 @@
 #include "adore_map/road_graph.hpp"
 #include "adore_math/distance.h"
 #include "adore_math/point.h"
-#include "adore_math/pose.h"
 
 namespace adore
 {
@@ -51,21 +50,21 @@ struct Route
   std::pair<bool, double>
   get_distance_along_route( const Map& latest_map, const state& object_position ) const
   {
-    if( center_lane.size() < 2 )
+    if( center_lane.empty() )
     {
       // Route is empty
-      return { false, std::numeric_limits<double>::max() };
+      return { true, 0.0 };
     }
 
     // Initialize minimum distance and perpendicular offset value
     double s_at_min_distance    = std::numeric_limits<double>::max();
     double perpendicular_offset = 0.0;
-    bool   within_lane          = false;
+    bool   within_lane          = true;
     double min_dist             = std::numeric_limits<double>::max();
     double lane_width           = 4.0;
 
     // Iterate over the route points to find the nearest point
-    for( size_t i = 0; i < center_lane.size() - 2; i++ )
+    for( size_t i = 0; i < center_lane.size() - 1; i++ )
     {
       double distance = adore::math::distance_2d( object_position, center_lane[i] );
       if( distance < min_dist )
@@ -76,7 +75,7 @@ struct Route
           lane_width = latest_map.lanes.at( center_lane[i].parent_id )->get_width( 0.0 );
         }
 
-        s_at_min_distance = center_lane[i].s;
+        s_at_min_distance = center_lane[i].s + min_dist;
         // Direction vector of the section at which the object is
         double dx = center_lane[i + 1].x - center_lane[i].x;
         double dy = center_lane[i + 1].y - center_lane[i].y;
@@ -89,12 +88,13 @@ struct Route
         double denominator = std::sqrt( dx * dx + dy * dy );
 
         perpendicular_offset = numerator / denominator;
-        if( perpendicular_offset < lane_width / 2 )
+        if( perpendicular_offset > lane_width / 2 )
         {
-          within_lane = true;
+          within_lane = false;
         }
       }
     }
+
 
     return { within_lane, s_at_min_distance };
   }
@@ -102,38 +102,39 @@ struct Route
   // Helper functions
   template<typename State>
   double
-  get_s_at_state( const State& state ) const
+  get_s_at_state( const State& state, double& min_distance )
   {
-    double min_distance = std::numeric_limits<double>::max();
-    if( center_lane.empty() )
     {
-      // Route is empty
-      return 0.0;
-    }
-
-    // Initialize minimum distance and corresponding s value
-    double s_at_min_distance = 0.0;
-
-    // Iterate over the route points to find the nearest point
-    for( const auto& point : center_lane )
-    {
-      double distance = adore::math::distance_2d( state, point );
-      if( distance < min_distance )
+      if( center_lane.empty() )
       {
-        min_distance      = distance;
-        s_at_min_distance = point.s;
+        // Route is empty
+        return 0.0;
       }
-    }
 
-    return s_at_min_distance;
+      // Initialize minimum distance and corresponding s value
+      double s_at_min_distance = 0.0;
+
+      // Iterate over the route points to find the nearest point
+      for( const auto& point : center_lane )
+      {
+        double distance = adore::math::distance_2d( state, point );
+        if( distance < min_distance )
+        {
+          min_distance      = distance;
+          s_at_min_distance = point.s;
+        }
+      }
+
+      return s_at_min_distance;
+    }
   }
 
   template<typename State>
   void
   trim_route_up_to_state( const State& state )
   {
-
-    double s = get_s_at_state( state );
+    double min_dist = std::numeric_limits<double>::max();
+    double s        = get_s_at_state( state, min_dist );
 
     while( !center_lane.empty() && center_lane.front().s < s )
     {
@@ -242,32 +243,6 @@ struct Route
 
     // Replace the original center_lane with the interpolated_lane
     center_lane = std::move( interpolated_lane );
-  }
-
-  math::Pose2d
-  get_pose_at_distance_along_route( const double distance )
-  {
-    math::Pose2d  pose2d;
-    math::Point2d next_point;
-    math::Point2d previous_point;
-    double        weight;
-    double        eps = 1e-6;
-    for( int i = 1; i < center_lane.size(); i++ )
-    {
-      if( center_lane[i].s > distance )
-      {
-        previous_point.x = center_lane[i - 1].x;
-        previous_point.y = center_lane[i - 1].y;
-        next_point.x     = center_lane[i].x;
-        next_point.y     = center_lane[i].y;
-        weight           = ( distance - center_lane[i - 1].s ) / ( center_lane[i].s - center_lane[i - 1].s + eps );
-        pose2d.x         = previous_point.x * ( 1 - weight ) + next_point.x * weight;
-        pose2d.y         = previous_point.y * ( 1 - weight ) + next_point.y * weight;
-        pose2d.yaw       = std::atan2( next_point.y - previous_point.y, next_point.x - previous_point.x );
-        break;
-      }
-    }
-    return pose2d;
   }
 };
 

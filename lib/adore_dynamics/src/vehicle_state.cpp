@@ -39,19 +39,6 @@ VehicleStateDynamic::from_vehicle_state_simple( const VehicleStateSimple& simple
   );
 }
 
-void
-VehicleStateDynamic::integrate_up_to_time( double time_now )
-{
-  double         dt = time_now - this->time;
-  VehicleCommand last_command;
-  last_command.acceleration   = ax;
-  last_command.steering_angle = steering_angle;
-
-  constexpr auto model = PhysicalVehicleParameters( "bicycle" );
-
-  auto new_state = dynamics::rk4_step( *this, last_command, dt, dt, model );
-}
-
 // Definition of operator<< for VehicleStateDynamic
 std::ostream&
 operator<<( std::ostream& os, const VehicleStateDynamic& state )
