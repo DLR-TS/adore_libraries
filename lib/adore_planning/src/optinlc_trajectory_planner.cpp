@@ -46,6 +46,8 @@ OptiNLCTrajectoryPlanner::set_parameters( const std::map<std::string, double>& p
       look_ahead_for_curvature = value;
     if( name == "look_behind_for_curvature" )
       look_behind_for_curvature = value;
+    if( name == "desired_time_headway" )
+      desired_time_headway = value;
   }
 }
 
