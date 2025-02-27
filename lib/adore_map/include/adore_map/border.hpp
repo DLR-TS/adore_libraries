@@ -35,7 +35,7 @@ struct Border
   // original points for the border
   std::vector<MapPoint> points;
 
-  std::optional<BorderSpline> spline = std::nullopt;
+  std::optional<BorderSpline> spline;
 
   // interpolated points
   std::vector<MapPoint> interpolated_points;

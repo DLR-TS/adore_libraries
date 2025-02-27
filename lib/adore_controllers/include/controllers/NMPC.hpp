@@ -64,11 +64,10 @@ public:
 private:
 
   // Variables to store previous commands
-  std::vector<double> last_steering_angle;
-  std::vector<double> last_acceleration;
-  double              bad_counter        = 0;
-  int                 counter            = 0;
-  double              objective_function = 0.0;
+  double last_steering_angle = 0.0;
+  double last_acceleration   = 0.0;
+  double bad_counter         = 0;
+  int    counter             = 0;
 
   // Variables for MPC solver configuration
   OptiNLC_Options options;
@@ -92,8 +91,6 @@ public:
 
   NMPC();
   dynamics::VehicleCommandLimits limits;
-
-  double get_objective_function();
 
   // Public method to get the next vehicle command based on NMPC
   dynamics::VehicleCommand get_next_vehicle_command( const dynamics::Trajectory&          trajectory,

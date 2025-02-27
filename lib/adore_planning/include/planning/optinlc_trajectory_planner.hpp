@@ -54,18 +54,16 @@ public:
     Y,
     PSI,
     V,
-    DELTA,
-    dDELTA,
     S,
     L
   };
 
   enum CONTROLS
   {
-    ddDELTA
+    DELTA
   };
 
-  static constexpr int    state_size       = 8;
+  static constexpr int    state_size       = 6;
   static constexpr int    input_size       = 1;
   static constexpr int    control_points   = 30;
   static constexpr double sim_time         = 3.0; // Simulation time for the MPC
@@ -87,14 +85,11 @@ private:
 
   route_to_piecewise_polynomial setup_optimizer_parameters_using_route( const map::Route& latest_route );
 
-  double lateral_weight     = 0.01;
-  double heading_weight     = 0.06;
-  double steering_weight    = 1.0;
-  double dt                 = 0.1; // 10ms frequency of the node
-  double wheelbase          = 2.69;
-  double max_forward_speed  = 13.6;
-  double max_reverse_speed  = -2.0;
-  double near_goal_distance = 50.0;
+  double lateral_weight  = 0.01;
+  double heading_weight  = 0.06;
+  double steering_weight = 1.0;
+  double dt              = 0.1; // 10ms frequency of the node
+  double wheelbase       = 2.69;
 
   // Curvature based velocity calculation members
   double              maximum_velocity   = 5.0; // Maximum set velocity
@@ -103,19 +98,19 @@ private:
   std::vector<double> curvature_behind;
   double              look_ahead_for_curvature  = 40.0; // 40 meters look ahead for curvature based speed reduction
   double              look_behind_for_curvature = 10.0; // 10 meters look behind for curvature based speed reduction
-  double              curvature_weight          = 2.0;
+  double              curvature_weight          = 6.0;
   int                 distance_to_add_behind    = 1;
   double              distance_to_goal          = 100.0;
   double              distance_to_object        = 0.0;
+  double              distance_to_object_min    = 10000.0;
   bool                within_lane               = true;
 
   // IDM related members
   double min_distance_to_vehicle_ahead = 10.0; // 10 meters minimum gap to vehicle in front
   double desired_time_headway          = 1.5;  // 1.5 seconds time headway
   double front_vehicle_velocity        = 0.0;  // temporary, TODO -> Get from traffic participants list
-  double max_acceleration              = 2.0;  // Maximum acceleration 2.0 m/s²
-  double max_deceleration              = 2.5;  // Maximum deceleration 2.5 m/s²
-  double velocity_error_gain           = 1.25; // gain for adjusting reference velocity
+  double max_acceleration              = 1.5;  // Maximum acceleration 1.5 m/s²
+  double max_deceleration              = 2.0;  // Maximum deceleration 2.0 m/s²
 
   // Variables to store previous commands
   double               last_steering_angle = 0.0;
@@ -147,12 +142,15 @@ private:
 
   // Helper function to get reference velocity
   void                setup_reference_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                                const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
-                                                const double& time_headway );
+                                                const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
   double              calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                              const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
-                                              const double& time_headway );
+                                              const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
   std::vector<double> calculate_curvature( const std::vector<adore::math::Point2d>& path );
+
+  // Helper function to set up the solver and solve the problem
+  bool solve_mpc( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp,
+                  VECTOR<double, state_size>& initial_state, VECTOR<double, input_size>& initial_input, std::vector<double>& delta_output,
+                  std::vector<double>& acc_output, double current_time );
 
 public:
 
@@ -161,8 +159,7 @@ public:
 
   // Public method to get the next vehicle command based on OptiNLCTrajectoryPlanner
   dynamics::Trajectory plan_trajectory( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                        const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
-                                        const double time_headway );
+                                        const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
 
   void set_parameters( const std::map<std::string, double>& params );
 };
