@@ -31,8 +31,6 @@ namespace adore
 namespace map
 {
 
-class Map;
-
 struct Route
 {
   std::deque<MapPoint> center_lane;
@@ -47,9 +45,9 @@ struct Route
   double get_remaining_route_length() const;
 
   // get distance to object along route and if the object is within the lane
-  template<typename state>
+  template<typename state, typename MapT>
   std::pair<bool, double>
-  get_distance_along_route( const Map& latest_map, const state& object_position ) const
+  get_distance_along_route( const MapT& latest_map, const state& object_position ) const
   {
     if( center_lane.size() < 2 )
     {
@@ -160,7 +158,6 @@ struct Route
       return cut_route;
     }
 
-    double s       = 0;
     double start_s = center_lane.front().s;
     for( const auto& p : center_lane )
     {
@@ -252,7 +249,7 @@ struct Route
     math::Point2d previous_point;
     double        weight;
     double        eps = 1e-6;
-    for( int i = 1; i < center_lane.size(); i++ )
+    for( size_t i = 1; i < center_lane.size(); i++ )
     {
       if( center_lane[i].s > distance )
       {

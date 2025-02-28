@@ -21,7 +21,7 @@ namespace map
 {
 
 // Remove duplicate points from a vector of MapPoints based on s values
-static void
+inline static void
 remove_duplicate_points( std::vector<MapPoint>& points )
 {
   auto last = std::unique( points.begin(), points.end(),

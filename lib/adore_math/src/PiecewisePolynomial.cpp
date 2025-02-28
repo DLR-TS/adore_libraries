@@ -128,7 +128,7 @@ PiecewisePolynomial::find( const std::vector<double>& input, double ref, Compari
   switch( comparison )
   {
     case EQUAL_TO:
-      for( int i = 0; i < input.size(); ++i )
+      for( size_t i = 0; i < input.size(); ++i )
       {
         if( input[i] == ref )
         {
@@ -137,7 +137,7 @@ PiecewisePolynomial::find( const std::vector<double>& input, double ref, Compari
       }
       break;
     case GREATER_THAN:
-      for( int i = 0; i < input.size(); ++i )
+      for( size_t i = 0; i < input.size(); ++i )
       {
         if( input[i] > ref )
         {
@@ -146,7 +146,7 @@ PiecewisePolynomial::find( const std::vector<double>& input, double ref, Compari
       }
       break;
     case LESS_THAN:
-      for( int i = 0; i < input.size(); ++i )
+      for( size_t i = 0; i < input.size(); ++i )
       {
         if( input[i] < ref )
         {
@@ -155,7 +155,7 @@ PiecewisePolynomial::find( const std::vector<double>& input, double ref, Compari
       }
       break;
     case GREATER_THAN_OR_EQUAL:
-      for( int i = 0; i < input.size(); ++i )
+      for( size_t i = 0; i < input.size(); ++i )
       {
         if( input[i] >= ref )
         {
@@ -164,7 +164,7 @@ PiecewisePolynomial::find( const std::vector<double>& input, double ref, Compari
       }
       break;
     case LESS_THAN_OR_EQUAL:
-      for( int i = 0; i < input.size(); ++i )
+      for( size_t i = 0; i < input.size(); ++i )
       {
         if( input[i] <= ref )
         {
@@ -250,7 +250,7 @@ void
 PiecewisePolynomial::sparseDiagonalMatrix( std::vector<double>& sparse, std::vector<double>& input, int output_row, int output_column,
                                            int StartingReference )
 {
-  int inputSize    = input.size();
+  int inputSize    = static_cast<int>( input.size() );
   int offsetRow    = 0;
   int offsetColumn = 0;
   int counter      = 0;
@@ -334,13 +334,13 @@ PiecewisePolynomial::LocalCoordination
 PiecewisePolynomial::localCoordination( std::vector<double>& Userbreaks, PiecewisePolynomial::PiecewiseStruct& pp )
 {
   LocalCoordination lc;
-  int               N = Userbreaks.size();
+  size_t            N = Userbreaks.size();
   lc.lc_breaks.resize( N );
   lc.lc_index.resize( N );
   const double eps = 1e-20;
-  for( int i = 0; i < N; i++ )
+  for( size_t i = 0; i < N; i++ )
   {
-    for( int j = 0; j <= pp.size - 1; j++ )
+    for( size_t j = 0; j <= static_cast<size_t>( pp.size - 1 ); j++ )
     {
       if( Userbreaks[i] + eps >= pp.breaks[j] && Userbreaks[i] + eps <= pp.breaks[j + 1] )
       {
@@ -348,7 +348,7 @@ PiecewisePolynomial::localCoordination( std::vector<double>& Userbreaks, Piecewi
       }
     }
   }
-  for( int i = 0; i < N; i++ )
+  for( size_t i = 0; i < N; i++ )
   { // Local coordination of high resoluted data
     lc.lc_breaks[i] = ( Userbreaks[i] - pp.breaks[lc.lc_index[i]] );
   }
@@ -361,7 +361,7 @@ PiecewisePolynomial::LinearPiecewiseEvaluation( std::vector<double>& interpolate
 {
   auto lc = localCoordination( Userbreaks, pp );
   interpolatedLinear.resize( Userbreaks.size() );
-  for( int i = 0; i < Userbreaks.size(); i++ )
+  for( size_t i = 0; i < Userbreaks.size(); i++ )
   {
     interpolatedLinear[i] = ( pp.coef1[lc.lc_index[i]] * lc.lc_breaks[i] + pp.coef2[lc.lc_index[i]] );
   }
@@ -390,7 +390,7 @@ PiecewisePolynomial::CubicSplineEvaluation( std::vector<double>& interpolatedSpl
   auto lc = localCoordination( Userbreaks, pp );
   interpolatedSpline.resize( Userbreaks.size() );
   // ax^3+bx^2+cx+d
-  for( int i = 0; i < Userbreaks.size(); i++ )
+  for( size_t i = 0; i < Userbreaks.size(); i++ )
   {
     interpolatedSpline[i] = ( ( ( ( pp.coef1[lc.lc_index[i]] * lc.lc_breaks[i] + pp.coef2[lc.lc_index[i]] ) * lc.lc_breaks[i] )
                                 + pp.coef3[lc.lc_index[i]] )
@@ -407,7 +407,7 @@ PiecewisePolynomial::CubicSplineEvaluation( std::vector<double>& interpolatedSpl
   interpolatedSpline.resize( Userbreaks.size() );
   d_interpolatedSpline.resize( Userbreaks.size() );
   // ax^3+bx^2+cx+d
-  for( int i = 0; i < Userbreaks.size(); i++ )
+  for( size_t i = 0; i < Userbreaks.size(); i++ )
   {
     interpolatedSpline[i] = ( ( ( ( pp.coef1[lc.lc_index[i]] * lc.lc_breaks[i] + pp.coef2[lc.lc_index[i]] ) * lc.lc_breaks[i] )
                                 + pp.coef3[lc.lc_index[i]] )
@@ -428,7 +428,7 @@ PiecewisePolynomial::CubicSplineEvaluation( std::vector<double>& interpolatedSpl
   d_interpolatedSpline.resize( Userbreaks.size() );
   dd_interpolatedSpline.resize( Userbreaks.size() );
   // ax^3+bx^2+cx+d
-  for( int i = 0; i < Userbreaks.size(); i++ )
+  for( size_t i = 0; i < Userbreaks.size(); i++ )
   {
     interpolatedSpline[i] = ( ( ( ( pp.coef1[lc.lc_index[i]] * lc.lc_breaks[i] + pp.coef2[lc.lc_index[i]] ) * lc.lc_breaks[i] )
                                 + pp.coef3[lc.lc_index[i]] )
@@ -451,7 +451,7 @@ PiecewisePolynomial::CubicSplineEvaluation( std::vector<double>& interpolatedSpl
   dd_interpolatedSpline.resize( Userbreaks.size() );
   ddd_interpolatedSpline.resize( Userbreaks.size() );
   // ax^3+bx^2+cx+d
-  for( int i = 0; i < Userbreaks.size(); i++ )
+  for( size_t i = 0; i < Userbreaks.size(); i++ )
   {
     interpolatedSpline[i] = ( ( ( ( pp.coef1[lc.lc_index[i]] * lc.lc_breaks[i] + pp.coef2[lc.lc_index[i]] ) * lc.lc_breaks[i] )
                                 + pp.coef3[lc.lc_index[i]] )

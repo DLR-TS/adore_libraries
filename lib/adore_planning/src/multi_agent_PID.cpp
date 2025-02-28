@@ -81,6 +81,8 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
   {
     for( auto& [id, participant] : traffic_participant_set.participants )
     {
+      if( participant.physical_parameters.wheelbase == 0 )
+        participant.physical_parameters.wheelbase = 0.5;
       dynamics::VehicleStateDynamic next_state;
       dynamics::VehicleStateDynamic current_state = participant.trajectory && !participant.trajectory->states.empty()
                                                     ? participant.trajectory->states.back()

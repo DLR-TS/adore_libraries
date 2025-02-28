@@ -61,9 +61,9 @@ struct TrafficParticipant
   TrafficParticipant( const VehicleStateDynamic& init_state, int id, TrafficParticipantClassification classification,
                       const PhysicalVehicleParameters& physical_parameters ) :
     state( init_state ),
-    physical_parameters( physical_parameters ),
     classification( classification ),
-    id( id )
+    id( id ),
+    physical_parameters( physical_parameters )
   {}
 
   VehicleStateDynamic              state;          // Current state of the traffic participant

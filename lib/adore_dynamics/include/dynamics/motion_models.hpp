@@ -89,7 +89,6 @@ kinematic_bicycle_model( const VehicleStateDynamic& state, const PhysicalVehicle
   // Unpack state
   double psi = state.yaw_angle;
   double vx  = state.vx;
-  double vy  = state.vy;
 
   // Use commanded acceleration
   double           a_cmd   = cmd.acceleration;
