@@ -68,7 +68,7 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
     state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
     state_constraints[V]      = max_reverse_speed;
     state_constraints[DELTA]  = -limits.max_steering_angle;
-    state_constraints[dDELTA] = -0.5;
+    state_constraints[dDELTA] = -max_steering_velocity;
     return state_constraints;
   } );
 
@@ -77,20 +77,20 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
     state_constraints.setConstant( std::numeric_limits<double>::infinity() );
     state_constraints[V]      = max_forward_speed;
     state_constraints[DELTA]  = limits.max_steering_angle;
-    state_constraints[dDELTA] = 0.5;
+    state_constraints[dDELTA] = max_steering_velocity;
     return state_constraints;
   } );
 
   // Input Constraints
   ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, input_size> input_constraints;
-    input_constraints[ddDELTA] = -1.5;
+    input_constraints[ddDELTA] = -max_steering_acceleration;
     return input_constraints;
   } );
 
   ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, input_size> input_constraints;
-    input_constraints[ddDELTA] = 1.5;
+    input_constraints[ddDELTA] = max_steering_acceleration;
     return input_constraints;
   } );
 

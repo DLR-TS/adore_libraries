@@ -94,6 +94,8 @@ private:
   double wheelbase          = 2.69;
   double max_forward_speed  = 13.6;
   double max_reverse_speed  = -2.0;
+  double max_steering_velocity = 0.5;
+  double max_steering_acceleration = 1.5;
   double near_goal_distance = 50.0;
 
   // Curvature based velocity calculation members
