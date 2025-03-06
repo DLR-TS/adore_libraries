@@ -46,8 +46,6 @@ OptiNLCTrajectoryPlanner::set_parameters( const std::map<std::string, double>& p
       look_ahead_for_curvature = value;
     if( name == "look_behind_for_curvature" )
       look_behind_for_curvature = value;
-    if( name == "desired_time_headway" )
-      desired_time_headway = value;
   }
 }
 
@@ -56,14 +54,13 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
 {
 
   // Define a simple input update method
-  ocp.setInputUpdate(
-    [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input, double currentTime, void* userData ) {
-      VECTOR<double, input_size> update_input = { input[dDELTA] };
-      return update_input;
-    } );
+  ocp.setInputUpdate( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& input, double, void* ) {
+    VECTOR<double, input_size> update_input = { input[dDELTA] };
+    return update_input;
+  } );
 
   // State Constraints
-  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
     state_constraints[V]      = max_reverse_speed;
@@ -72,7 +69,7 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
     return state_constraints;
   } );
 
-  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( std::numeric_limits<double>::infinity() );
     state_constraints[V]      = max_forward_speed;
@@ -82,32 +79,32 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
   } );
 
   // Input Constraints
-  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, input_size> input_constraints;
     input_constraints[ddDELTA] = -max_steering_acceleration;
     return input_constraints;
   } );
 
-  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, input_size> input_constraints;
     input_constraints[ddDELTA] = max_steering_acceleration;
     return input_constraints;
   } );
 
   // Define a functions constraints method
-  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( 0.0 );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( -std::numeric_limits<double>::infinity() );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( std::numeric_limits<double>::infinity() );
     return functions_constraint;
@@ -117,7 +114,7 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
 void
 OptiNLCTrajectoryPlanner::setup_objective_function( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp )
 {
-  ocp.setObjectiveFunction( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input, double current_time ) {
+  ocp.setObjectiveFunction( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>&, double ) {
     return state[L]; // Minimize the cost function `L`
   } );
 }
@@ -164,7 +161,6 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   solver.solve( current_state.time, initial_state, initial_input );
 
   auto   opt_x                   = solver.get_optimal_states();
-  auto   opt_u                   = solver.get_optimal_inputs();
   auto   time                    = solver.getTime();
   double last_objective_function = solver.get_final_objective_function();
 
@@ -173,7 +169,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   {
     bad_counter = 0;
   }
-  for( int i = 0; i < control_points / 2; i++ )
+  for( size_t i = 0; i < control_points / 2; i++ )
   {
     if( last_objective_function > 20.0 || opt_x[i * state_size + V] > 14.5 || opt_x[i * state_size + V] < 0.0
         || opt_x[i * state_size + dDELTA] > 1.5 )
@@ -185,7 +181,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   }
 
   dynamics::Trajectory planned_trajectory;
-  for( int i = 0; i < control_points; i++ )
+  for( size_t i = 0; i < control_points; i++ )
   {
     dynamics::VehicleStateDynamic state;
     state.x              = opt_x[i * state_size + X];
@@ -226,7 +222,7 @@ void
 OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp )
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input,
-                            VECTOR<double, state_size>& derivative, double current_time, void* user_data ) {
+                            VECTOR<double, state_size>& derivative, double, void* ) {
     double tau = 2.5; // Higher value means slower acceleration
 
     if( reference_velocity - state[V] > 0 )
@@ -235,7 +231,7 @@ OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, s
     }
     else
     {
-      tau = 2.0; // Lower value for quick braking
+      tau = 1.25; // Lower value for quick braking
     }
 
     // Dynamic model equations
@@ -270,7 +266,7 @@ OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, s
     heading_cost        *= heading_cost * heading_weight;
 
     // Steering input cost
-    double steering_cost = state[DELTA] * state[DELTA] * steering_weight;
+    // double steering_cost = state[DELTA] * state[DELTA] * steering_weight;
 
     // Total cost derivative
     derivative[L] = lateral_cost + heading_cost;
@@ -313,7 +309,7 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   }
 
   int N = 0;
-  for( int i = 0; i < latest_route.center_lane.size(); i++ )
+  for( size_t i = 0; i < latest_route.center_lane.size(); i++ )
   {
     N++;
     if( latest_route.center_lane[i].s > maximum_required_road_length )
@@ -330,7 +326,7 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   std::vector<double> w;
 
   double previous_s = 0.0;
-  for( int i = 0; i < N; i++ )
+  for( size_t i = 0; i < N; i++ )
   {
     if( latest_route.center_lane[i].s - previous_s > 0.75 )
     {

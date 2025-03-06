@@ -50,21 +50,20 @@ SafetyCorridorPlanner::setup_constraints( OptiNLC_OCP<double, input_size, state_
 {
 
   // Define a simple input update method
-  ocp.setInputUpdate(
-    [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input, double currentTime, void* userData ) {
-      VECTOR<double, input_size> update_input = { input[DELTA] };
-      return update_input;
-    } );
+  ocp.setInputUpdate( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& input, double, void* ) {
+    VECTOR<double, input_size> update_input = { input[DELTA] };
+    return update_input;
+  } );
 
   // State Constraints
-  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
     state_constraints[V] = 0.0;
     return state_constraints;
   } );
 
-  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( std::numeric_limits<double>::infinity() );
     state_constraints[V] = 13.6;
@@ -72,32 +71,32 @@ SafetyCorridorPlanner::setup_constraints( OptiNLC_OCP<double, input_size, state_
   } );
 
   // Input Constraints
-  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, input_size> input_constraints;
     input_constraints[DELTA] = -limits.max_steering_angle;
     return input_constraints;
   } );
 
-  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, input_size> input_constraints;
     input_constraints[DELTA] = limits.max_steering_angle;
     return input_constraints;
   } );
 
   // Define a functions constraints method
-  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( 0.0 );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( -std::numeric_limits<double>::infinity() );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( std::numeric_limits<double>::infinity() );
     return functions_constraint;
@@ -107,7 +106,7 @@ SafetyCorridorPlanner::setup_constraints( OptiNLC_OCP<double, input_size, state_
 void
 SafetyCorridorPlanner::setup_objective_function( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp )
 {
-  ocp.setObjectiveFunction( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input, double current_time ) {
+  ocp.setObjectiveFunction( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>&, double ) {
     return state[L]; // Minimize the cost function `L`
   } );
 }
@@ -117,12 +116,11 @@ dynamics::Trajectory
 SafetyCorridorPlanner::plan_trajectory( std::vector<adore::math::Point2d> border, const dynamics::VehicleStateDynamic& current_state )
 {
   adore::math::Point2d closestIntersection;
-  double               minDistance   = std::numeric_limits<double>::max();
-  bool                 found         = false;
-  int                  closestIndex1 = -1, closestIndex2 = -1;
+  double               minDistance  = std::numeric_limits<double>::max();
+  int                  closestIndex = -1;
   std::string          relativePosition;
   // Check each segment of the polyline
-  for( int i = 0; i < border.size() - 1; i++ )
+  for( size_t i = 0; i < border.size() - 1; i++ )
   {
     adore::math::Point2d intersection;
     adore::math::Point2d p1;
@@ -141,9 +139,7 @@ SafetyCorridorPlanner::plan_trajectory( std::vector<adore::math::Point2d> border
       {
         minDistance         = distance;
         closestIntersection = intersection;
-        closestIndex1       = i;
-        closestIndex2       = i + 1;
-        found               = true;
+        closestIndex        = i + 1;
         relativePosition    = getRelativePosition( p1, p2, carPosition );
       }
     }
@@ -170,10 +166,10 @@ SafetyCorridorPlanner::plan_trajectory( std::vector<adore::math::Point2d> border
   std::vector<double> border_x;
   std::vector<double> border_y;
   std::vector<double> border_heading;
-  for( int i = 0; i < border.size() - closestIndex2; i++ )
+  for( size_t i = 0; i < border.size() - closestIndex; i++ )
   {
-    border_x.push_back( border[i + closestIndex2].x );
-    border_y.push_back( border[i + closestIndex2].y );
+    border_x.push_back( border[i + closestIndex].x );
+    border_y.push_back( border[i + closestIndex].y );
   }
   border_x.insert( border_x.begin(), closestIntersection.x );
   border_y.insert( border_y.begin(), closestIntersection.y );
@@ -272,7 +268,7 @@ void
 SafetyCorridorPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp )
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input,
-                            VECTOR<double, state_size>& derivative, double current_time, void* user_data ) {
+                            VECTOR<double, state_size>& derivative, double, void* ) {
     const double wheelbase = 2.69; // wheelbase, can be tuned based on your vehicle
     const double tau       = 2.0;  // Higher value means slower acceleration
 
@@ -307,7 +303,7 @@ SafetyCorridorPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, stat
     heading_cost *= heading_cost * heading_weight;
 
     // Steering input cost
-    double steering_cost = input[DELTA] * input[DELTA] * steering_weight;
+    // double steering_cost = input[DELTA] * input[DELTA] * steering_weight;
 
     // Total cost derivative
     derivative[L] = lateral_cost + heading_cost;
@@ -343,7 +339,7 @@ SafetyCorridorPlanner::findIntersection( const adore::math::Point2d& p1, const a
     return false; // The line is parallel to the line segment
   }
 
-  double t = ( ( p1.x - carPos.x ) * dy - ( p1.y - carPos.y ) * dx ) / denominator;
+  // double t = ( ( p1.x - carPos.x ) * dy - ( p1.y - carPos.y ) * dx ) / denominator;
   double u = ( ( p1.x - carPos.x ) * perpY - ( p1.y - carPos.y ) * perpX ) / denominator;
 
   if( u < 0 || u > 1 )
