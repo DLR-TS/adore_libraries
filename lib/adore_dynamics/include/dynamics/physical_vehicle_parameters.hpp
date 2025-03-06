@@ -1,3 +1,13 @@
+/********************************************************************************
+ * Copyright (C) 2017-2025 German Aerospace Center (DLR).
+ * Eclipse ADORe, Automated Driving Open Research https://eclipse.org/adore
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ *
+ * Contributors:
+ *    Marko Mizdrak
+ ********************************************************************************/
+
 #pragma once
 
 #include <fstream>

@@ -71,7 +71,6 @@ private:
                                const dynamics::VehicleStateDynamic& current_state );
 
   std::pair<double, double> compute_obstacle_avoidance_speed_component_errors( const dynamics::VehicleStateDynamic& current_state,
-                                                                               const double                         current_s,
                                                                                dynamics::TrafficParticipantSet&     traffic_participant_set,
                                                                                const int                            vehicle_id );
 

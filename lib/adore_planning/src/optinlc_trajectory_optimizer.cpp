@@ -126,7 +126,7 @@ OptiNLCTrajectoryOptimizer::plan_trajectory( const dynamics::Trajectory&        
   auto start_time = std::chrono::high_resolution_clock::now();
 
   // Initial state and input
-  VECTOR<double, OptiNLCTrajectoryOptimizer::input_size> initial_input = { current_state.steering_angle, 0.25 };
+  VECTOR<double, OptiNLCTrajectoryOptimizer::input_size> initial_input = { current_state.steering_angle, 0.25 }; // MAGIC_NUMBER
   VECTOR<double, OptiNLCTrajectoryOptimizer::state_size> initial_state = { current_state.x, current_state.y, current_state.yaw_angle,
                                                                            current_state.vx, 0.0 };
 

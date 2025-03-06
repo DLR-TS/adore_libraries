@@ -7,6 +7,7 @@
  * Contributors:
  *    Sanath Himasekhar Konthala
  *    Giovanni Lucente
+ *    Marko Mizdrak
  ********************************************************************************/
 #pragma once
 #include "adore_map/route.hpp"

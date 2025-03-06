@@ -516,7 +516,7 @@ PiecewisePolynomial::CubicSplineSmoother( std::vector<double>& input_x, std::vec
    2) f(x+) = f (x-)
    3) f'(x+) = f' (x-)
    general formula consists of two parts data fitting and smoothing and smoothingFactor is the weight between parts
-  /*Step one: natural end condition f''(x1) = f''(xN) = 0
+  Step one: natural end condition f''(x1) = f''(xN) = 0
   any other points f''(x+) = f''(x-)
   which results in c_i-1 .Dx_i-1 + c_i.2.(Dx_i-1 + Dx_i) + c_i+1.D_x = 3(Da_i/Dx_i - Da_i-1/Dx_i-1)
   in matrix form Rc = 3 Q_transpose a

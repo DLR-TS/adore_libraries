@@ -172,7 +172,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   for( size_t i = 0; i < control_points / 2; i++ )
   {
     if( last_objective_function > 20.0 || opt_x[i * state_size + V] > 14.5 || opt_x[i * state_size + V] < 0.0
-        || opt_x[i * state_size + dDELTA] > 1.5 )
+        || opt_x[i * state_size + dDELTA] > 1.5 ) // MAGIC_NUMBERS
     {
       bad_condition  = true;
       bad_counter   += 1;
@@ -223,15 +223,15 @@ OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, s
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input,
                             VECTOR<double, state_size>& derivative, double, void* ) {
-    double tau = 2.5; // Higher value means slower acceleration
+    double tau = 2.5; // Higher value means slower acceleration MAGIC_NUMBER
 
     if( reference_velocity - state[V] > 0 )
     {
-      tau = 2.5; // Higher value for smooth acceleration
+      tau = 2.5; // Higher value for smooth acceleration MAGIC_NUMBER
     }
     else
     {
-      tau = 1.25; // Lower value for quick braking
+      tau = 1.25; // Lower value for quick braking MAGIC_NUMBER
     }
 
     // Dynamic model equations
@@ -294,21 +294,21 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   distance_to_goal = latest_route.get_remaining_route_length();
 
   route_to_piecewise_polynomial route;
-  double                        sim_time = 3.0; // 3.0 seconds road ahead with 50km/h speed
+  double                        sim_time = 3.0; // 3.0 seconds road ahead with 50km/h speed MAGIC_NUMBER
 
   double maximum_required_road_length = sim_time * ( 13.6 + 1. ); // 13.6 maximum urban velocity, 1. extension window for end of horizon, if
                                                                   // starting point of optimization was bad
-  if( maximum_required_road_length < 0.10 )
+  if( maximum_required_road_length < 0.10 )                       // MAGIC_NUMBER
   {
     return route;
   }
 
-  if( latest_route.center_lane.size() < 1 )
+  if( latest_route.center_lane.empty() )
   {
     return route;
   }
 
-  int N = 0;
+  size_t N = 0;
   for( size_t i = 0; i < latest_route.center_lane.size(); i++ )
   {
     N++;
@@ -328,7 +328,7 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   double previous_s = 0.0;
   for( size_t i = 0; i < N; i++ )
   {
-    if( latest_route.center_lane[i].s - previous_s > 0.75 )
+    if( latest_route.center_lane[i].s - previous_s > 0.75 ) // MAGIC_NUMBER
     {
       route_to_follow.s.push_back( latest_route.center_lane[i].s );
       route_to_follow.x.push_back( latest_route.center_lane[i].x );
@@ -343,14 +343,14 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
     return route;
   }
   route_to_follow.s[0] = 0.0; // overwriting the first element to 0 (start from ego vehicle)
-  route.x              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.x, w, 0.9 );
-  route.y              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.y, w, 0.9 );
+  route.x              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.x, w, 0.9 ); // MAGIC_NUMBER
+  route.y              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.y, w, 0.9 ); // MAGIC_NUMBER
 
   std::vector<double> x, dx;
   std::vector<double> y, dy;
   pp.CubicSplineEvaluation( x, dx, route_to_follow.s, route.x );
   pp.CubicSplineEvaluation( y, dy, route_to_follow.s, route.y );
-  for( int i = 0; i < route_to_follow.s.size() - 1; i++ )
+  for( size_t i = 0; route_to_follow.s.size() > 0 && i < route_to_follow.s.size() - 1; i++ )
   {
     if( dx[i] == 0.0 || dx.size() < 1 || dy.size() < 1 )
     {
@@ -359,7 +359,7 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
     route_to_follow.psi.push_back( std::atan2( dy[i], dx[i] ) );
   }
   route_to_follow.psi[route_to_follow.s.size() - 1] = route_to_follow.psi[route_to_follow.s.size() - 2];
-  route.heading                                     = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.psi, w, 0.75 );
+  route.heading = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.psi, w, 0.75 ); // MAGIC_NUMBER
 
   // Calculate time taken
   auto                          end_time        = std::chrono::high_resolution_clock::now();
@@ -386,7 +386,7 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
   }
 
   std::vector<double> curvature  = calculate_curvature( path_for_curvature );
-  distance_moved                += current_state.vx * 0.1;
+  distance_moved                += current_state.vx * 0.1; // MAGIC_NUMBER
   if( distance_moved > distance_to_add_behind )
   {
     curvature_behind.push_back( curvature[0] );
@@ -432,7 +432,7 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
     object_position.y                      = participant.state.y;
     auto [within_lane, distance_to_object] = latest_route.get_distance_along_route( latest_map, object_position );
 
-    if( within_lane && distance_to_object < distance_to_object_min && distance_to_object > 0.2 )
+    if( within_lane && distance_to_object < distance_to_object_min && distance_to_object > 0.2 ) // MAGIC_NUMBER
     {
       distance_to_object_min = distance_to_object;
     }

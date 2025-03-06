@@ -90,8 +90,8 @@ private:
   double lateral_weight            = 0.01;
   double heading_weight            = 0.06;
   double steering_weight           = 1.0;
-  double dt                        = 0.1; // 10ms frequency of the node
-  double wheelbase                 = 2.69;
+  double dt                        = 0.1;  // 10ms frequency of the node
+  double wheelbase                 = 2.69; // MAGIC_NUMBER get ffrom vehicle params
   double max_forward_speed         = 13.6;
   double max_reverse_speed         = -2.0;
   double max_steering_velocity     = 0.5;

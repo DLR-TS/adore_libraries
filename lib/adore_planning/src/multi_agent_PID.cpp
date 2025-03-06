@@ -112,8 +112,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 
       if( offset > obstacle_avoidance_offset_threshold )
       {
-        auto speed_component_errors = compute_obstacle_avoidance_speed_component_errors( current_state, current_trajectory_s,
-                                                                                         traffic_participant_set, id );
+        auto speed_component_errors = compute_obstacle_avoidance_speed_component_errors( current_state, traffic_participant_set, id );
         obstacle_avoidance_longitudinal_speed_error = speed_component_errors.first;
         obstacle_avoidance_lateral_speed_error      = speed_component_errors.second;
       }
@@ -224,7 +223,6 @@ MultiAgentPID::compute_distance_speed_offset_nearest_obstacle( dynamics::Traffic
 
 std::pair<double, double>
 MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics::VehicleStateDynamic& current_state,
-                                                                  const double                         current_s,
                                                                   dynamics::TrafficParticipantSet& traffic_participant_set, int vehicle_id )
 {
   double lateral_speed_error      = 0.0;

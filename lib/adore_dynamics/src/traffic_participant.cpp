@@ -7,6 +7,7 @@
  * Contributors:
  *    Sanath Himasekhar Konthala
  *    Giovanni Lucente
+ *    Marko Mizdrak
  ********************************************************************************/
 #include "dynamics/traffic_participant.hpp"
 

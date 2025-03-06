@@ -29,12 +29,12 @@
 #define DEG_TO_RAD ( M_PI / 180.0 )
 
 #include <chrono>
-#include <thread>
 #include <mutex>
+#include <thread>
 
 #define QUOTE( ... ) #__VA_ARGS__
-const char* UTM_TO_LAT_LONG_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE(python3 -c "from utm import to_latlon; print(to_latlon(%.2f, %.2f, %d, '%s'))");
-const char* LAT_LONG_TO_UTM_PYTHON_CONVERTER_COMMAND_TEMPLATE = QUOTE(python3 -c "from utm import from_latlon; print(from_latlon(%.6f, %.6f))");
+const char* UTM_TO_LAT_LONG_PYTHON_TEMPLATE = QUOTE( python3 - c "from utm import to_latlon; print(to_latlon(%.2f, %.2f, %d, '%s'))" );
+const char* LAT_LONG_TO_UTM_PYTHON_TEMPLATE = QUOTE( python3 - c "from utm import from_latlon; print(from_latlon(%.6f, %.6f))" );
 
 namespace adore
 {
@@ -87,27 +87,27 @@ calculate_utm_zone_letter( double lat )
 {
   const char utm_zone_letters[] = "CDEFGHJKLMNPQRSTUVWXX";
   int        zone_index         = static_cast<int>( ( lat + 80.0 ) / 8.0 );
+  int        num_letters        = static_cast<int>( sizeof( utm_zone_letters ) );
 
   if( zone_index < 0 )
   {
     zone_index = 0;
   }
-  else if( zone_index >= sizeof( utm_zone_letters ) - 1 )
+  else if( zone_index >= num_letters - 1 )
   {
-    zone_index = sizeof( utm_zone_letters ) - 2;
+    zone_index = num_letters - 2;
   }
 
   return utm_zone_letters[zone_index];
 }
-
 
 std::mutex proj_mutex;
 
 std::vector<double>
 convert_lat_lon_to_utm( double lat, double lon )
 {
-  std::lock_guard<std::mutex> lock(proj_mutex);
-  
+  std::lock_guard<std::mutex> lock( proj_mutex );
+
   std::vector<double> output( 4, 0.0 ); // [utm_x, utm_y, utm_zone, utm_letter]
   try
   {
@@ -145,9 +145,9 @@ convert_lat_lon_to_utm( double lat, double lon )
       throw std::runtime_error( "Failed to create PROJ latlong projection." );
     }
 
-    PJ_COORD input = {0};
-    input.lp.lam = lon * DEG_TO_RAD;
-    input.lp.phi = lat * DEG_TO_RAD;
+    PJ_COORD input = { 0 };
+    input.lp.lam   = lon * DEG_TO_RAD;
+    input.lp.phi   = lat * DEG_TO_RAD;
 
     PJ_COORD output_coord = proj_trans( P_latlong, PJ_FWD, input );
     output_coord          = proj_trans( P, PJ_FWD, output_coord );
@@ -234,7 +234,7 @@ convert_utm_to_lat_lon_python( double utm_x, double utm_y, int utm_zone, const s
   try
   {
     char command[200];
-    std::sprintf( command, UTM_TO_LAT_LONG_PYTHON_CONVERTER_COMMAND_TEMPLATE, utm_x, utm_y, utm_zone, utm_zone_letter.c_str() );
+    std::sprintf( command, UTM_TO_LAT_LONG_PYTHON_TEMPLATE, utm_x, utm_y, utm_zone, utm_zone_letter.c_str() );
     std::string result = execute_shell_command( command );
 
     result.erase( std::remove( result.begin(), result.end(), '(' ), result.end() );
@@ -266,7 +266,7 @@ convert_lat_lon_to_utm_python( double lat, double lon )
   try
   {
     char command[200];
-    std::sprintf( command, LAT_LONG_TO_UTM_PYTHON_CONVERTER_COMMAND_TEMPLATE, lat, lon );
+    std::sprintf( command, LAT_LONG_TO_UTM_PYTHON_TEMPLATE, lat, lon );
     std::cout << "    Shell command: " << command << std::endl;
     std::string result = execute_shell_command( command );
 

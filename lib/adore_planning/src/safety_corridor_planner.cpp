@@ -159,10 +159,7 @@ SafetyCorridorPlanner::plan_trajectory( std::vector<adore::math::Point2d> border
                                + ( current_state.y - car_previous_y ) * ( current_state.y - car_previous_y ) );
   car_previous_x  = current_state.x;
   car_previous_y  = current_state.y;
-  std::cerr << "Distance moved: " << distance_moved << std::endl;
 
-  std::cerr << "min distance: " << minDistance << std::endl;
-  std::cerr << "Relative Position: " << relativePosition << std::endl;
   std::vector<double> border_x;
   std::vector<double> border_y;
   std::vector<double> border_heading;
@@ -269,8 +266,8 @@ SafetyCorridorPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, stat
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input,
                             VECTOR<double, state_size>& derivative, double, void* ) {
-    const double wheelbase = 2.69; // wheelbase, can be tuned based on your vehicle
-    const double tau       = 2.0;  // Higher value means slower acceleration
+    const double wheelbase = 2.69; // wheelbase, can be tuned based on your vehicle // MAGIC_NUMBER should use vehicle params
+    const double tau       = 2.0;  // Higher value means slower acceleration // MAGIC_NUMBER
 
     // Dynamic model equations
     derivative[X]   = state[V] * cos( state[PSI] );                      // X derivative (velocity * cos(psi))
@@ -293,7 +290,7 @@ SafetyCorridorPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, stat
     double cos_yaw = cos( reference_heading );
     double sin_yaw = sin( reference_heading );
 
-    double lateral_cost  = -dx * sin_yaw + dy * cos_yaw + 1.5;
+    double lateral_cost  = -dx * sin_yaw + dy * cos_yaw + 1.5; // MAGIC_NUMBER
     lateral_cost        *= lateral_cost * lateral_weight;
 
     // Heading error term
