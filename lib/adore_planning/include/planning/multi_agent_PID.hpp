@@ -49,7 +49,7 @@ public:
   const double min_point_distance                  = 0.05;
   double       wheelbase                           = 2.7;
   double       max_speed                           = 5.0;
-  double       obstacle_avoidance_offset_threshold = 2.0;
+  double       obstacle_avoidance_offset_threshold = 1.0;
   double       k_yaw                               = 2.0;
   double       k_distance                          = 2.0;
   double       k_speed                             = 0.5;
@@ -57,6 +57,7 @@ public:
   double       k_repulsive_force                   = 100.0;
   double       k_obstacle_avoidance_longitudinal   = 3.0;
   double       k_obstacle_avoidance_lateral        = 3.0;
+  double       lane_width                          = 4.0;
 
 
 private:

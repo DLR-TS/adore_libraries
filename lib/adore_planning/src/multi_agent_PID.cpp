@@ -109,8 +109,8 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
 
       double obstacle_avoidance_longitudinal_speed_error = 0.0;
       double obstacle_avoidance_lateral_speed_error      = 0.0;
-
-      if( offset > obstacle_avoidance_offset_threshold )
+      
+      if( offset > obstacle_avoidance_offset_threshold && offset < 0.5 * lane_width )
       {
         auto speed_component_errors = compute_obstacle_avoidance_speed_component_errors( current_state, traffic_participant_set, id );
         obstacle_avoidance_longitudinal_speed_error = speed_component_errors.first;
@@ -128,7 +128,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
                                      + k_obstacle_avoidance_lateral * obstacle_avoidance_lateral_speed_error;
 
       vehicle_command.clamp_within_limits( limits );
-
+      
       next_state                = dynamics::integrate_euler( current_state, vehicle_command, dt,
                                                              make_kinematic_motion_model( participant.physical_parameters ) );
       next_state.ax             = vehicle_command.acceleration;
@@ -182,6 +182,7 @@ MultiAgentPID::compute_distance_speed_offset_nearest_obstacle( dynamics::Traffic
 
   double closest_distance = std::numeric_limits<double>::max();
   double offset           = std::numeric_limits<double>::max();
+  double offset_closest_object = std::numeric_limits<double>::max();
   double obstacle_speed   = 0.0;
 
   auto& ref_participant = traffic_participant_set.participants[vehicle_id];
@@ -208,17 +209,27 @@ MultiAgentPID::compute_distance_speed_offset_nearest_obstacle( dynamics::Traffic
     }
 
     offset = math::distance_2d( object_state, pose_at_distance );
-    if( offset > obstacle_avoidance_offset_threshold || distance < 1.0 )
+    
+    if( offset > 0.5 * lane_width )
+    {
       continue;
+    }
+
+    if ( offset > obstacle_avoidance_offset_threshold )
+    {
+      offset_closest_object = offset;
+      continue;
+    }
 
     if( distance < closest_distance )
     {
       closest_distance = distance;
       obstacle_speed   = object_state.vx;
+      offset_closest_object = offset;
     }
   }
 
-  return { closest_distance, obstacle_speed, offset };
+  return { closest_distance, obstacle_speed, offset_closest_object };
 }
 
 std::pair<double, double>
@@ -229,6 +240,7 @@ MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics
   double longitudinal_speed_error = 0.0;
   double distance_treshold        = 8.0;
   double k_sigmoid                = 5.0;
+  auto& ref_participant = traffic_participant_set.participants[vehicle_id];
   auto&  ref_participant_route    = traffic_participant_set.participants[vehicle_id].route.value();
 
   for( const auto& [id, other_participant] : traffic_participant_set.participants )
@@ -237,6 +249,22 @@ MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics
     {
       continue;
     }
+
+    double distance_on_the_route         = ref_participant_route.get_s_at_state( other_participant.state );
+    auto   pose_at_distance = ref_participant_route.get_pose_at_distance_along_route( distance_on_the_route );
+
+    if( ref_participant.trajectory && !ref_participant.trajectory->states.empty() )
+    {
+      distance_on_the_route -= ref_participant_route.get_s_at_state( ref_participant.trajectory->states.back() );
+    }
+
+    double offset = math::distance_2d( other_participant.state, pose_at_distance );
+
+    if( offset > 0.5 * lane_width )
+    {
+      continue;
+    }
+    
     double distance_to_object                              = math::distance_2d( current_state, other_participant.state );
     double activation_weight                               = sigmoid_activation( distance_to_object, distance_treshold, k_sigmoid );
     auto [target_longitudinal_speed, target_lateral_speed] = compute_target_speed_components( current_state, other_participant.state,
@@ -254,7 +282,7 @@ std::pair<double, double>
 MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state,
                                                 const dynamics::VehicleStateDynamic& other_participant_state, map::Route& route )
 {
-  constexpr double object_radius = 2.5;
+  constexpr double object_radius = 2.0;
   constexpr double U_speed       = 3.0;
 
   // Compute distance vector and its norm
