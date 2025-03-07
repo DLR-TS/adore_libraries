@@ -15,6 +15,31 @@ namespace adore
 {
 namespace dynamics
 {
+math::Polygon2d
+TrafficParticipant::get_corners() const
+{
+  // Compute half dimensions.
+  double half_length = physical_parameters.body_length / 2.0;
+  double half_width  = physical_parameters.body_width / 2.0;
+
+  // Define the four corners in local coordinates.
+  // The order here is: rear-right, rear-left, front-left, front-right.
+  math::Polygon2d corners;
+  corners.points = { math::Point2d( -half_length, -half_width ), math::Point2d( -half_length, half_width ),
+                     math::Point2d( half_length, half_width ), math::Point2d( half_length, -half_width ) };
+
+  double cos_yaw = std::cos( state.yaw_angle );
+  double sin_yaw = std::sin( state.yaw_angle );
+
+  // Convert local corners to global coordinates using the vehicle's pose.
+  for( auto& corner : corners.points )
+  {
+    corner.x = state.x + corner.x * cos_yaw - corner.y * sin_yaw;
+    corner.y = state.y + corner.x * sin_yaw + corner.y * cos_yaw;
+  }
+
+  return corners;
+}
 
 void
 TrafficParticipantSet::update_traffic_participants( const TrafficParticipant& new_participant_data )
@@ -62,4 +87,6 @@ TrafficParticipantSet::remove_old_participants( double max_age, double current_t
 };
 
 } // namespace dynamics
+
+
 } // namespace adore

@@ -242,7 +242,7 @@ struct Route
   }
 
   math::Pose2d
-  get_pose_at_distance_along_route( const double distance )
+  get_pose_at_distance_along_route( const double distance ) const
   {
     math::Pose2d  pose2d;
     math::Point2d next_point;

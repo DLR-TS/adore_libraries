@@ -76,6 +76,9 @@ struct TrafficParticipant
   std::optional<int>           v2x_id     = std::nullopt; // V2X ID
   std::optional<Trajectory>    trajectory = std::nullopt; // Predicted or planned trajectory
   std::optional<map::Route>    route      = std::nullopt; // Route information
+
+  // calculate participant corners
+  math::Polygon2d get_corners() const;
 };
 
 struct TrafficParticipantSet
