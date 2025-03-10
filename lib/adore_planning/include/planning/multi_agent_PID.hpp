@@ -50,7 +50,6 @@ public:
   int          number_of_integration_steps = 200;
   double       dt                          = 0.05;
   const double min_point_distance          = 0.05;
-  double       wheelbase                   = 2.7;
   double       max_speed                   = 5.0;
 
   double obstacle_avoidance_offset_threshold = 1.0;

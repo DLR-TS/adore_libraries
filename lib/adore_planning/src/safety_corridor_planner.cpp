@@ -331,7 +331,7 @@ SafetyCorridorPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, stat
     double cos_yaw = cos( reference_heading );
     double sin_yaw = sin( reference_heading );
 
-    double lateral_cost  = -dx * sin_yaw + dy * cos_yaw + 1.5; // MAGIC_NUMBER
+    double lateral_cost  = -dx * sin_yaw + dy * cos_yaw;
     lateral_cost        *= lateral_cost * lateral_weight;
 
     // Heading error term

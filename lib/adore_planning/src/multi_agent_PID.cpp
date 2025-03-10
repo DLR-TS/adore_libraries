@@ -36,9 +36,7 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
 {
   for( const auto& [name, value] : params )
   {
-    if( name == "wheelbase" )
-      wheelbase = value;
-    else if( name == "max_speed" )
+    if( name == "max_speed" )
       max_speed = value;
     else if( name == "desired_acceleration" )
       desired_acceleration = value;
