@@ -24,6 +24,7 @@
 #include "adore_map/route.hpp"
 #include "adore_math/PiecewisePolynomial.h"
 #include "adore_math/angles.h"
+#include "adore_math/curvature.hpp"
 #include "adore_math/distance.h"
 
 #include "OptiNLC_Data.h"
@@ -68,7 +69,7 @@ public:
   static constexpr int    state_size       = 8;
   static constexpr int    input_size       = 1;
   static constexpr int    control_points   = 30;
-  static constexpr double sim_time         = 3.0; // Simulation time for the MPC
+  static constexpr double sim_time         = 3.0; // Simulation time for the Planner
   static constexpr int    constraints_size = 0;
 
 
@@ -90,13 +91,18 @@ private:
   double lateral_weight            = 0.01;
   double heading_weight            = 0.06;
   double steering_weight           = 1.0;
-  double dt                        = 0.1;  // 10ms frequency of the node
-  double wheelbase                 = 2.69; // MAGIC_NUMBER get ffrom vehicle params
+  double dt                        = 0.1; // 10ms frequency of the node
+  double wheelbase                 = 2.69;
   double max_forward_speed         = 13.6;
   double max_reverse_speed         = -2.0;
   double max_steering_velocity     = 0.5;
   double max_steering_acceleration = 1.5;
-  double near_goal_distance        = 20.0;
+  double near_goal_distance        = 50.0;
+
+  double min_distance_in_route     = 0.1;
+  double position_smoothing_factor = 0.9;
+  double heading_smoothing_factor  = 0.75;
+  double threshold_bad_output      = 20.0; // value of cost function above which is considered bad
 
   // Curvature based velocity calculation members
   double              maximum_velocity   = 5.0; // Maximum set velocity
@@ -118,6 +124,7 @@ private:
   double max_acceleration              = 2.0;  // Maximum acceleration 2.0 m/s²
   double max_deceleration              = 2.5;  // Maximum deceleration 2.5 m/s²
   double velocity_error_gain           = 1.25; // gain for adjusting reference velocity
+  double tau                           = 2.5;  // first order
 
   // Variables to store previous commands
   double               last_steering_angle = 0.0;

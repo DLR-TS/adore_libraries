@@ -29,9 +29,12 @@ SafetyCorridorPlanner::set_parameters( const std::map<std::string, double>& para
   options.OptiNLC_time_limit      = 0.09;
   options.perturbation            = 1e-6;
   options.timeStep                = sim_time / control_points;
+  options.debugPrint              = false;
 
   for( const auto& [name, value] : params )
   {
+    if( name == "wheel_base" )
+      wheelbase = value;
     if( name == "intermediate_integration" )
       options.intermediateIntegration = static_cast<int>( value );
     if( name == "max_iterations" )
@@ -51,7 +54,7 @@ SafetyCorridorPlanner::setup_constraints( OptiNLC_OCP<double, input_size, state_
 
   // Define a simple input update method
   ocp.setInputUpdate( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& input, double, void* ) {
-    VECTOR<double, input_size> update_input = { input[DELTA] };
+    VECTOR<double, input_size> update_input = { input[ddDELTA] };
     return update_input;
   } );
 
@@ -59,27 +62,31 @@ SafetyCorridorPlanner::setup_constraints( OptiNLC_OCP<double, input_size, state_
   ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
-    state_constraints[V] = 0.0;
+    state_constraints[V]      = max_reverse_speed;
+    state_constraints[DELTA]  = -limits.max_steering_angle;
+    state_constraints[dDELTA] = -max_steering_velocity;
     return state_constraints;
   } );
 
   ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( std::numeric_limits<double>::infinity() );
-    state_constraints[V] = 13.6;
+    state_constraints[V]      = max_forward_speed;
+    state_constraints[DELTA]  = limits.max_steering_angle;
+    state_constraints[dDELTA] = max_steering_velocity;
     return state_constraints;
   } );
 
   // Input Constraints
   ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, input_size> input_constraints;
-    input_constraints[DELTA] = -limits.max_steering_angle;
+    input_constraints[ddDELTA] = -max_steering_acceleration;
     return input_constraints;
   } );
 
   ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, input_size> input_constraints;
-    input_constraints[DELTA] = limits.max_steering_angle;
+    input_constraints[ddDELTA] = max_steering_acceleration;
     return input_constraints;
   } );
 
@@ -207,8 +214,10 @@ SafetyCorridorPlanner::plan_trajectory( std::vector<adore::math::Point2d> border
   auto start_time = std::chrono::high_resolution_clock::now();
 
   // Initial state and input
-  VECTOR<double, input_size> initial_input = { current_state.steering_angle };
-  VECTOR<double, state_size> initial_state = { current_state.x, current_state.y, current_state.yaw_angle, current_state.vx, 0.0, 0.0 };
+  VECTOR<double, input_size> initial_input = { 0.0 };
+  VECTOR<double, state_size> initial_state = {
+    current_state.x, current_state.y, current_state.yaw_angle, current_state.vx, current_state.steering_angle, 0.0, 0.0, 0.0
+  };
 
   // Create an MPC problem (OCP)
   OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points> ocp( &options );
@@ -225,40 +234,62 @@ SafetyCorridorPlanner::plan_trajectory( std::vector<adore::math::Point2d> border
 
   solver.solve( current_state.time, initial_state, initial_input );
 
-  auto opt_x = solver.get_optimal_states();
-  auto opt_u = solver.get_optimal_inputs();
-  auto time  = solver.getTime();
+  auto   opt_x                   = solver.get_optimal_states();
+  auto   time                    = solver.getTime();
+  double last_objective_function = solver.get_final_objective_function();
+
+  bad_condition = false;
+  if( bad_counter > 4 )
+  {
+    bad_counter = 0;
+  }
+  for( size_t i = 0; i < control_points / 2; i++ )
+  {
+    if( last_objective_function > 20.0 || opt_x[i * state_size + V] > max_forward_speed || opt_x[i * state_size + V] < max_reverse_speed
+        || std::abs( opt_x[i * state_size + dDELTA] ) > max_steering_velocity )
+    {
+      bad_condition  = true;
+      bad_counter   += 1;
+      break;
+    }
+  }
 
   dynamics::Trajectory planned_trajectory;
-  for( int i = 0; i < control_points; i++ )
+  for( size_t i = 0; i < control_points; i++ )
   {
     dynamics::VehicleStateDynamic state;
     state.x              = opt_x[i * state_size + X];
     state.y              = opt_x[i * state_size + Y];
     state.yaw_angle      = opt_x[i * state_size + PSI];
     state.vx             = opt_x[i * state_size + V];
-    state.steering_angle = opt_u[i * input_size + DELTA];
+    state.steering_angle = opt_x[i * state_size + DELTA];
+    state.steering_rate  = opt_x[i * state_size + dDELTA];
     state.time           = time[i];
     if( i < control_points - 1 )
     {
-      state.yaw_rate      = ( opt_x[( i + 1 ) * state_size + PSI] - opt_x[i * state_size + PSI] ) / options.timeStep;
-      state.ax            = ( opt_x[( i + 1 ) * state_size + V] - opt_x[i * state_size + V] ) / options.timeStep;
-      state.steering_rate = ( opt_u[( i + 1 ) * input_size + DELTA] - opt_u[i * input_size + DELTA] ) / options.timeStep;
+      state.yaw_rate = ( opt_x[( i + 1 ) * state_size + PSI] - opt_x[i * state_size + PSI] ) / options.timeStep;
+      state.ax       = ( opt_x[( i + 1 ) * state_size + V] - opt_x[i * state_size + V] ) / options.timeStep;
     }
     planned_trajectory.states.push_back( state );
   }
-  planned_trajectory.states[control_points - 1].yaw_rate      = planned_trajectory.states[control_points - 2].yaw_rate;
-  planned_trajectory.states[control_points - 1].ax            = planned_trajectory.states[control_points - 2].ax;
-  planned_trajectory.states[control_points - 1].steering_rate = planned_trajectory.states[control_points - 2].steering_rate;
+  planned_trajectory.states[control_points - 1].yaw_rate = planned_trajectory.states[control_points - 2].yaw_rate;
+  planned_trajectory.states[control_points - 1].ax       = planned_trajectory.states[control_points - 2].ax;
 
   // Calculate time taken
   auto                          end_time        = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> elapsed_seconds = end_time - start_time;
 
   // Log cost, time taken, and convergence status
-  std::cerr << "SafetyCorridorPlanner execution time: " << elapsed_seconds.count() << " seconds\n";
-
-  return planned_trajectory;
+  if( bad_condition == false && bad_counter < 5 )
+  {
+    previous_trajectory = planned_trajectory;
+    bad_counter         = 0;
+    return planned_trajectory;
+  }
+  else
+  {
+    return previous_trajectory;
+  }
 }
 
 void
@@ -266,15 +297,25 @@ SafetyCorridorPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, stat
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input,
                             VECTOR<double, state_size>& derivative, double, void* ) {
-    const double wheelbase = 2.69; // wheelbase, can be tuned based on your vehicle // MAGIC_NUMBER should use vehicle params
-    const double tau       = 2.0;  // Higher value means slower acceleration // MAGIC_NUMBER
+    double tau = 2.5; // Higher value means slower acceleration
+
+    if( reference_velocity - state[V] > 0 )
+    {
+      tau = 2.5; // Higher value for smooth acceleration
+    }
+    else
+    {
+      tau = 1.25; // Lower value for quick braking
+    }
 
     // Dynamic model equations
-    derivative[X]   = state[V] * cos( state[PSI] );                      // X derivative (velocity * cos(psi))
-    derivative[Y]   = state[V] * sin( state[PSI] );                      // Y derivative (velocity * sin(psi))
-    derivative[PSI] = state[V] * tan( input[DELTA] ) / wheelbase;        // PSI derivative (steering angle / wheelbase)
-    derivative[V]   = ( 1.0 / tau ) * ( reference_velocity - state[V] ); // Velocity derivative (first order)
-    derivative[S]   = state[V];                                          // Progress derivate (velocity)
+    derivative[X]      = state[V] * cos( state[PSI] );                      // X derivative (velocity * cos(psi))
+    derivative[Y]      = state[V] * sin( state[PSI] );                      // Y derivative (velocity * sin(psi))
+    derivative[PSI]    = state[V] * tan( state[DELTA] ) / wheelbase;        // PSI derivative (steering angle / wheelbase)
+    derivative[V]      = ( 1.0 / tau ) * ( reference_velocity - state[V] ); // Velocity derivative (first order)
+    derivative[DELTA]  = state[dDELTA];                                     // Steering angle derivative
+    derivative[dDELTA] = input[ddDELTA];                                    // Steering angle rate derivative
+    derivative[S]      = state[V];                                          // Progress derivate (velocity)
 
     // Reference trajectory point at current progress
     int    index             = pp.findIndex( state[S], safety_corridor_x );

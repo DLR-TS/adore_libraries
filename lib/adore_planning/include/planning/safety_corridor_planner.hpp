@@ -48,15 +48,17 @@ public:
     PSI,
     V,
     S,
+    DELTA,
+    dDELTA,
     L
   };
 
   enum CONTROLS
   {
-    DELTA
+    ddDELTA
   };
 
-  static constexpr int    state_size       = 6;
+  static constexpr int    state_size       = 8;
   static constexpr int    input_size       = 1;
   static constexpr int    control_points   = 30;
   static constexpr double sim_time         = 3.0; // Simulation time for the MPC
@@ -65,15 +67,24 @@ public:
 
 private:
 
-  double lateral_weight  = 0.1;
-  double heading_weight  = 1.0;
-  double steering_weight = 1.0;
+  double lateral_weight            = 0.4;
+  double heading_weight            = 0.75;
+  double steering_weight           = 1.0;
+  double wheelbase                 = 2.69;
+  double max_forward_speed         = 13.6;
+  double max_reverse_speed         = -2.0;
+  double max_steering_velocity     = 0.5;
+  double max_steering_acceleration = 1.5;
 
   double reference_velocity = 3.0; // reference velocity of 3.0 m/s to start leaving the safety corridor
   double car_previous_x;
   double car_previous_y;
   double distance_moved = 0.0;
   bool   car_start      = true;
+
+  double               bad_counter   = 0;
+  bool                 bad_condition = false;
+  dynamics::Trajectory previous_trajectory;
 
   // Variables to convert route to piecewise polynomial function
   adore::math::PiecewisePolynomial                  pp;
