@@ -30,7 +30,6 @@ OptiNLCTrajectoryPlanner::set_parameters( const std::map<std::string, double>& p
   options.perturbation            = 1e-6;
   options.timeStep                = sim_time / control_points;
   options.debugPrint              = false;
-  sim_time                        = 3.0; // 3 seconds planner horizon
 
   for( const auto& [name, value] : params )
   {
