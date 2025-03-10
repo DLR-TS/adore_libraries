@@ -162,6 +162,7 @@ convert_lat_lon_to_utm( double lat, double lon )
 
     output[0] = output_coord.enu.e;                // UTM X coordinate
     output[1] = output_coord.enu.n;                // UTM Y coordinate
+    //std::cerr << "utm x: " << output[0] << " utm y: " << output[1] << std::endl;
     output[2] = static_cast<double>( utm_zone );   // UTM zone as double
     output[3] = static_cast<double>( utm_letter ); // UTM letter as double
 
