@@ -26,9 +26,6 @@ This library provides tools for simulating vehicle dynamics, integrating physica
 - Provides tools for numerical integration
 - Core functionality for advancing dynamic systems in time.
 
-### RK4 Solver
-**File:** `OdeRK4.hpp`
-- Implements the 4th-order Runge-Kutta solver.
 
 ### Physical Vehicle Parameters
 **File:** `physical_vehicle_parameters.hpp`

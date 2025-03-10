@@ -10,7 +10,6 @@
  *    Mikkel Skov Maarssø
  *    Marko Mizdrak
  ********************************************************************************/
-#include "OdeRK4.hpp"
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Eigen>
 
@@ -28,8 +27,8 @@ struct VehicleCommandLimits
     min_acceleration( min_acc ) {};
 
   double max_steering_angle = 0.7;
-  double min_acceleration   = -1.0;
   double max_acceleration   = 1.0;
+  double min_acceleration   = -1.0;
 };
 
 struct VehicleCommand
