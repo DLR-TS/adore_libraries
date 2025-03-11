@@ -54,7 +54,8 @@ TrafficParticipantSet::update_traffic_participants( const TrafficParticipant& ne
     return;
   }
 
-  participants[new_participant_data.id].state = new_participant_data.state;
+  participants[new_participant_data.id].state               = new_participant_data.state;
+  participants[new_participant_data.id].physical_parameters = new_participant_data.physical_parameters;
 
   if( new_participant_data.goal_point.has_value() )
   {

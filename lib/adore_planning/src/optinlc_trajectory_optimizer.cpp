@@ -122,11 +122,10 @@ dynamics::Trajectory
 OptiNLCTrajectoryOptimizer::plan_trajectory( const dynamics::Trajectory&          reference_trajectory,
                                              const dynamics::VehicleStateDynamic& current_state )
 {
-  std::cerr << "Model based 1" << std::endl;
   auto start_time = std::chrono::high_resolution_clock::now();
 
   // Initial state and input
-  VECTOR<double, OptiNLCTrajectoryOptimizer::input_size> initial_input = { current_state.steering_angle, 0.25 }; // MAGIC_NUMBER
+  VECTOR<double, OptiNLCTrajectoryOptimizer::input_size> initial_input = { current_state.steering_angle, 0.25 };
   VECTOR<double, OptiNLCTrajectoryOptimizer::state_size> initial_state = { current_state.x, current_state.y, current_state.yaw_angle,
                                                                            current_state.vx, 0.0 };
 
@@ -164,9 +163,6 @@ OptiNLCTrajectoryOptimizer::plan_trajectory( const dynamics::Trajectory&        
   // Calculate time taken
   auto                          end_time        = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> elapsed_seconds = end_time - start_time;
-
-  // Log cost, time taken, and convergence status
-  std::cerr << "OptiNLCTrajectoryOptimizer::time " << elapsed_seconds.count() << " seconds\n";
 
   return planned_trajectory;
 }

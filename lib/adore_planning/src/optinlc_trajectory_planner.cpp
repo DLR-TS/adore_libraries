@@ -29,6 +29,7 @@ OptiNLCTrajectoryPlanner::set_parameters( const std::map<std::string, double>& p
   options.OptiNLC_time_limit      = 0.09;
   options.perturbation            = 1e-6;
   options.timeStep                = sim_time / control_points;
+  options.debugPrint              = false;
 
   for( const auto& [name, value] : params )
   {
@@ -55,7 +56,7 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
 
   // Define a simple input update method
   ocp.setInputUpdate( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& input, double, void* ) {
-    VECTOR<double, input_size> update_input = { input[dDELTA] };
+    VECTOR<double, input_size> update_input = { input[ddDELTA] };
     return update_input;
   } );
 
@@ -169,10 +170,10 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   {
     bad_counter = 0;
   }
-  for( size_t i = 0; i < control_points / 2; i++ )
+  for( size_t i = 0; i < control_points; i++ )
   {
-    if( last_objective_function > 20.0 || opt_x[i * state_size + V] > 14.5 || opt_x[i * state_size + V] < 0.0
-        || opt_x[i * state_size + dDELTA] > 1.5 ) // MAGIC_NUMBERS
+    if( last_objective_function > threshold_bad_output || opt_x[i * state_size + V] > max_forward_speed
+        || opt_x[i * state_size + V] < max_reverse_speed || std::abs( opt_x[i * state_size + dDELTA] ) > max_steering_velocity )
     {
       bad_condition  = true;
       bad_counter   += 1;
@@ -223,15 +224,13 @@ OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, s
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input,
                             VECTOR<double, state_size>& derivative, double, void* ) {
-    double tau = 2.5; // Higher value means slower acceleration MAGIC_NUMBER
-
     if( reference_velocity - state[V] > 0 )
     {
-      tau = 2.5; // Higher value for smooth acceleration MAGIC_NUMBER
+      tau = 2.5; // Higher value for smooth acceleration
     }
     else
     {
-      tau = 1.25; // Lower value for quick braking MAGIC_NUMBER
+      tau = 1.25; // Lower value for quick braking
     }
 
     // Dynamic model equations
@@ -294,11 +293,10 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   distance_to_goal = latest_route.get_remaining_route_length();
 
   route_to_piecewise_polynomial route;
-  double                        sim_time = 3.0; // 3.0 seconds road ahead with 50km/h speed MAGIC_NUMBER
 
-  double maximum_required_road_length = sim_time * ( 13.6 + 1. ); // 13.6 maximum urban velocity, 1. extension window for end of horizon, if
-                                                                  // starting point of optimization was bad
-  if( maximum_required_road_length < 0.10 )                       // MAGIC_NUMBER
+  double maximum_required_road_length = sim_time * max_forward_speed;
+
+  if( maximum_required_road_length < min_distance_in_route )
   {
     return route;
   }
@@ -328,7 +326,7 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   double previous_s = 0.0;
   for( size_t i = 0; i < N; i++ )
   {
-    if( latest_route.center_lane[i].s - previous_s > 0.75 ) // MAGIC_NUMBER
+    if( latest_route.center_lane[i].s - previous_s > 0.75 ) // adding points every 75 cm
     {
       route_to_follow.s.push_back( latest_route.center_lane[i].s );
       route_to_follow.x.push_back( latest_route.center_lane[i].x );
@@ -343,8 +341,8 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
     return route;
   }
   route_to_follow.s[0] = 0.0; // overwriting the first element to 0 (start from ego vehicle)
-  route.x              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.x, w, 0.9 ); // MAGIC_NUMBER
-  route.y              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.y, w, 0.9 ); // MAGIC_NUMBER
+  route.x              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.x, w, position_smoothing_factor );
+  route.y              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.y, w, position_smoothing_factor );
 
   std::vector<double> x, dx;
   std::vector<double> y, dy;
@@ -359,13 +357,11 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
     route_to_follow.psi.push_back( std::atan2( dy[i], dx[i] ) );
   }
   route_to_follow.psi[route_to_follow.s.size() - 1] = route_to_follow.psi[route_to_follow.s.size() - 2];
-  route.heading = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.psi, w, 0.75 ); // MAGIC_NUMBER
+  route.heading = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.psi, w, heading_smoothing_factor );
 
   // Calculate time taken
   auto                          end_time        = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> elapsed_seconds = end_time - start_time;
-
-  // Log cost, time taken, and convergence status
 
   return route;
 }
@@ -385,15 +381,26 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
     path_for_curvature.push_back( point_for_curvature );
   }
 
-  std::vector<double> curvature  = calculate_curvature( path_for_curvature );
-  distance_moved                += current_state.vx * 0.1; // MAGIC_NUMBER
+  std::vector<double> curvature;
+  if( path_for_curvature.size() < 3 )
+  {
+    std::cerr << "invalid path received for calculating curvature" << std::endl;
+    return;
+  }
+  for( size_t i = 0; i < path_for_curvature.size() - 2; i++ )
+  {
+    curvature.push_back( adore::math::compute_curvature( path_for_curvature[i].x, path_for_curvature[i].y, path_for_curvature[i + 1].x,
+                                                         path_for_curvature[i + 1].y, path_for_curvature[i + 2].x,
+                                                         path_for_curvature[i + 2].y ) );
+  }
+  distance_moved += current_state.vx * dt;
   if( distance_moved > distance_to_add_behind )
   {
     curvature_behind.push_back( curvature[0] );
     distance_to_add_behind += 1;
   }
 
-  if( curvature_behind.size() > look_behind_for_curvature ) // 10 meters look behind path
+  if( curvature_behind.size() > look_behind_for_curvature )
   {
     curvature_behind.erase( curvature_behind.begin() );
   }
@@ -432,7 +439,7 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
     object_position.y                      = participant.state.y;
     auto [within_lane, distance_to_object] = latest_route.get_distance_along_route( latest_map, object_position );
 
-    if( within_lane && distance_to_object < distance_to_object_min && distance_to_object > 0.2 ) // MAGIC_NUMBER
+    if( within_lane && distance_to_object < distance_to_object_min )
     {
       distance_to_object_min = distance_to_object;
     }
@@ -462,47 +469,6 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
     idm_velocity = maximum_velocity;
   }
   return idm_velocity;
-}
-
-std::vector<double>
-OptiNLCTrajectoryPlanner::calculate_curvature( const std::vector<adore::math::Point2d>& path )
-{
-  int                 n = path.size();
-  std::vector<double> curvature( n, 0.0 );
-
-  // Check if there are enough points to calculate curvature
-  if( n < 3 )
-  {
-    return curvature;
-  }
-
-  for( int i = 1; i < n - 1; ++i )
-  {
-    // Discrete first derivate
-    double x_prime = ( path[i + 1].x - path[i - 1].x ) / 2.0;
-    double y_prime = ( path[i + 1].y - path[i - 1].y ) / 2.0;
-
-    // Discrete second derivative
-    double x_double_prime = path[i + 1].x - 2 * path[i].x + path[i - 1].x;
-    double y_double_prime = path[i + 1].y - 2 * path[i].y + path[i - 1].y;
-
-    double numerator   = std::abs( x_prime * y_double_prime - y_prime * x_double_prime );
-    double denominator = std::pow( x_prime * x_prime + y_prime * y_prime, 1.5 );
-
-    if( denominator != 0 )
-    {
-      curvature[i] = numerator / denominator;
-    }
-    else
-    {
-      curvature[i] = 0.0;
-    }
-  }
-
-  curvature[0]     = curvature[1];
-  curvature[n - 1] = curvature[n - 2];
-
-  return curvature;
 }
 
 } // namespace planner
