@@ -83,6 +83,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
   for( auto& [id, participant] : traffic_participant_set.participants )
   {
     participant.trajectory = dynamics::Trajectory();
+    participant.state.vx   = 0.0;
   }
   // Precompute motion model lambdas for each participant.
   std::map<int, MotionModel> motion_models;
