@@ -261,7 +261,7 @@ MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics
     }
 
     double offset = math::distance_2d( other_participant.state, pose_at_distance );
-
+    
     if( offset > 0.5 * lane_width )
     {
       continue;
@@ -284,8 +284,8 @@ std::pair<double, double>
 MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state,
                                                 const dynamics::VehicleStateDynamic& other_participant_state, map::Route& route )
 {
-  constexpr double object_radius = 2.0;
-  constexpr double U_speed       = 3.0;
+  constexpr double object_radius = 1.0;
+  constexpr double U_speed       = 2.0;
 
   // Compute distance vector and its norm
   Eigen::Vector2d distance_vector( other_participant_state.x - current_state.x, other_participant_state.y - current_state.y );
@@ -295,7 +295,7 @@ MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDyna
   double          s_object         = route.get_s_at_state( other_participant_state );
   auto            pose_center_lane = route.get_pose_at_distance_along_route( s_object );
   Eigen::Vector2d center_lane_versor( std::cos( pose_center_lane.yaw ), std::sin( pose_center_lane.yaw ) );
-
+  
   // Compute angle between lane direction and distance vector
   double theta           = std::atan2( distance_vector.y(), distance_vector.x() ) - pose_center_lane.yaw;
   double theta_2         = 2 * theta;
