@@ -46,7 +46,10 @@ TrafficParticipantSet::update_traffic_participants( const TrafficParticipant& ne
 {
   // check if participant is within the validity area
   if( validity_area && !validity_area->point_inside( new_participant_data.state ) )
-    return;
+  {
+    // return;
+  }
+
 
   if( participants.count( new_participant_data.id ) == 0 )
   {

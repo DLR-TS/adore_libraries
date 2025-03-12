@@ -54,8 +54,6 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
       k_distance = value;
     else if( name == "k_goal_point" )
       k_goal_point = value;
-    else if( name == "k_repulsive_force" )
-      k_repulsive_force = value;
     else if( name == "k_sigmoid" )
       k_sigmoid = value;
     else if( name == "dt" )
@@ -145,11 +143,19 @@ MultiAgentPID::compute_vehicle_command( const adore::dynamics::VehicleStateDynam
   vehicle_command.steering_angle = k_yaw * error_yaw + k_distance * error_lateral;
   vehicle_command.acceleration   = -k_speed * ( current_state.vx - idm_vel );
 
-  if( offset > obstacle_avoidance_offset_threshold && offset < 0.5 * lane_width )
+  if( std::abs( offset ) > obstacle_avoidance_offset_threshold && std::abs( offset ) < 0.5 * lane_width )
   {
-    auto speed_component_errors     = compute_obstacle_avoidance_speed_component_errors( current_state, traffic_participant_set, id );
+    auto speed_component_errors = compute_obstacle_avoidance_speed_component_errors( current_state, traffic_participant_set, id );
+
+    // Ensure steering adjustment follows the sign of the offset
+    double avoidance_steering = speed_component_errors.second * k_obstacle_avoidance_lateral;
+    if( offset > 0 )
+      avoidance_steering = -std::abs( avoidance_steering ); // Steer right if obstacle is on the left
+    else
+      avoidance_steering = std::abs( avoidance_steering ); // Steer left if obstacle is on the right
+
     vehicle_command.acceleration   += k_obstacle_avoidance_longitudinal * speed_component_errors.first;
-    vehicle_command.steering_angle += speed_component_errors.second * k_obstacle_avoidance_lateral;
+    vehicle_command.steering_angle += avoidance_steering;
   }
 
   vehicle_command.clamp_within_limits( limits );
@@ -198,39 +204,41 @@ MultiAgentPID::compute_distance_speed_offset_nearest_obstacle( const dynamics::T
   double closest_distance      = std::numeric_limits<double>::max();
   double offset_closest_object = std::numeric_limits<double>::max();
   double obstacle_speed        = 0.0;
-  // Get reference participant.
+
   auto& ref_participant = traffic_participant_set.participants.at( vehicle_id );
-  // If there's no route available, return default values.
   if( !ref_participant.route )
   {
     return { closest_distance, obstacle_speed, offset_closest_object };
   }
 
-  auto&        route                 = ref_participant.route.value();
-  double       ref_current_s         = route.get_s_at_state( get_current_state( ref_participant ) );
-  const double lane_offset_threshold = 0.5 * lane_width;
+  auto&  route         = ref_participant.route.value();
+  double ref_current_s = route.get_s_at_state( get_current_state( ref_participant ) );
 
   for( const auto& [id, other_participant] : traffic_participant_set.participants )
   {
     if( id == vehicle_id )
       continue;
 
-    dynamics::VehicleStateDynamic object_state     = get_current_state( other_participant );
-    double                        object_s         = route.get_s_at_state( object_state );
-    double                        distance         = object_s - ref_current_s;
-    auto                          pose_at_distance = route.get_pose_at_distance_along_route( object_s );
-    double                        current_offset   = math::distance_2d( object_state, pose_at_distance );
+    dynamics::VehicleStateDynamic object_state = get_current_state( other_participant );
+    double                        object_s     = route.get_s_at_state( object_state );
+    double                        distance     = object_s - ref_current_s;
 
-    if( current_offset > lane_offset_threshold )
+    auto pose_at_distance = route.get_pose_at_distance_along_route( object_s );
+
+    // Compute signed lateral offset (negative = left, positive = right)
+    double dx             = object_state.x - pose_at_distance.x;
+    double dy             = object_state.y - pose_at_distance.y;
+    double current_offset = -dx * std::sin( pose_at_distance.yaw ) + dy * std::cos( pose_at_distance.yaw );
+
+    if( std::abs( current_offset ) > 0.5 * lane_width )
       continue;
 
-    if( current_offset > obstacle_avoidance_offset_threshold )
+    if( std::abs( current_offset ) > obstacle_avoidance_offset_threshold )
     {
       offset_closest_object = current_offset;
       continue;
     }
 
-    // Update if this obstacle is closer than previous ones.
     if( distance < closest_distance )
     {
       closest_distance      = distance;
@@ -255,31 +263,26 @@ MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics
   for( const auto& [id, other_participant] : traffic_participant_set.participants )
   {
     if( id == vehicle_id )
-    {
       continue;
-    }
 
     double distance_on_the_route = ref_participant_route.get_s_at_state( other_participant.state );
     auto   pose_at_distance      = ref_participant_route.get_pose_at_distance_along_route( distance_on_the_route );
+    double offset                = -( other_participant.state.x - pose_at_distance.x ) * std::sin( pose_at_distance.yaw )
+                  + ( other_participant.state.y - pose_at_distance.y ) * std::cos( pose_at_distance.yaw );
 
-    distance_on_the_route -= ref_participant_route.get_s_at_state( get_current_state( ref_participant ) );
-
-    double offset = math::distance_2d( other_participant.state, pose_at_distance );
-
-    if( offset > 0.5 * lane_width )
-    {
+    if( std::abs( offset ) > 0.5 * lane_width )
       continue;
-    }
 
     double distance_to_object                              = math::distance_2d( current_state, other_participant.state );
     double activation_weight                               = sigmoid_activation( distance_to_object, min_distance, k_sigmoid );
     auto [target_longitudinal_speed, target_lateral_speed] = compute_target_speed_components( current_state, other_participant.state,
                                                                                               ref_participant_route );
 
-    lateral_speed_error      = lateral_speed_error + activation_weight * ( target_lateral_speed - current_state.vy );
-    longitudinal_speed_error = longitudinal_speed_error + activation_weight * ( target_longitudinal_speed - current_state.vx );
+    lateral_speed_error      += activation_weight * ( target_lateral_speed - current_state.vy );
+    longitudinal_speed_error += activation_weight * ( target_longitudinal_speed - current_state.vx );
   }
-  return std::make_pair( longitudinal_speed_error, lateral_speed_error );
+
+  return { longitudinal_speed_error, lateral_speed_error };
 }
 
 std::pair<double, double>

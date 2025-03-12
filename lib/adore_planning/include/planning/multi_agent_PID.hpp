@@ -57,9 +57,9 @@ public:
   double k_distance                          = 2.0;
   double k_speed                             = 0.5;
   double k_goal_point                        = 10.0;
-  double k_repulsive_force                   = 100.0;
-  double k_obstacle_avoidance_longitudinal   = 3.0;
-  double k_obstacle_avoidance_lateral        = 3.0;
+  double k_repulsive_force                   = 10.0;
+  double k_obstacle_avoidance_longitudinal   = 1.0;
+  double k_obstacle_avoidance_lateral        = 1.0;
   double k_sigmoid                           = 5.0;
 
   double lane_width   = 4.0;
