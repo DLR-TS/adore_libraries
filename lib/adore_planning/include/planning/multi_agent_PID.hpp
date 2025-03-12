@@ -53,17 +53,16 @@ public:
   double       max_speed                   = 5.0;
 
   double obstacle_avoidance_offset_threshold = 1.0;
-  double k_yaw                               = 2.0;
+  double k_yaw                               = 8.0;
   double k_distance                          = 2.0;
   double k_speed                             = 0.5;
   double k_goal_point                        = 10.0;
-  double k_repulsive_force                   = 10.0;
-  double k_obstacle_avoidance_longitudinal   = 1.0;
-  double k_obstacle_avoidance_lateral        = 1.0;
+  double k_obstacle_avoidance_longitudinal   = 0.0;
+  double k_obstacle_avoidance_lateral        = 2.0;
   double k_sigmoid                           = 5.0;
 
   double lane_width   = 4.0;
-  double min_distance = 6.0;
+  double min_distance = 3.0;
   double time_headway = 3.0;
 
   dynamics::VehicleCommandLimits limits;
@@ -76,7 +75,8 @@ private:
                                                            const adore::dynamics::TrafficParticipantSet& traffic_participant_set,
                                                            const int                                     id );
 
-
+  std::pair<double, double> compute_lane_following_errors( const dynamics::VehicleStateDynamic& current_state,
+                                                           const dynamics::TrafficParticipant&  participant );
   double compute_error_lateral_distance( const dynamics::VehicleStateDynamic& current_state, const math::Pose2d& target_pose );
   double compute_error_yaw( const double current_yaw, const double yaw_objective );
 
