@@ -288,22 +288,32 @@ MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDyna
   constexpr double U_speed       = 2.0;
 
   // Compute distance vector and its norm
-  Eigen::Vector2d distance_vector( other_participant_state.x - current_state.x, other_participant_state.y - current_state.y );
+  Eigen::Vector2d distance_vector(current_state.x - other_participant_state.x, current_state.y - other_participant_state.y );
   double          distance_to_object = distance_vector.norm();
 
   // Compute lane-aligned vectors
   double          s_object         = route.get_s_at_state( other_participant_state );
   auto            pose_center_lane = route.get_pose_at_distance_along_route( s_object );
   Eigen::Vector2d center_lane_versor( std::cos( pose_center_lane.yaw ), std::sin( pose_center_lane.yaw ) );
-  
+
   // Compute angle between lane direction and distance vector
-  double theta           = std::atan2( distance_vector.y(), distance_vector.x() ) - pose_center_lane.yaw;
+  double theta           = std::atan2( distance_vector.y(), distance_vector.x()) - pose_center_lane.yaw;
   double theta_2         = 2 * theta;
   double inv_distance_sq = 1.0 / ( distance_to_object * distance_to_object );
   double coeff           = object_radius * object_radius * U_speed * inv_distance_sq;
-
+  
   // Fluidodynamic target speeds
-  Eigen::Vector2d target_speed = U_speed * center_lane_versor - coeff * Eigen::Vector2d( std::cos( theta_2 ), std::sin( theta_2 ) );
+  Eigen::Vector2d target_speed_frenet_frame;
+  target_speed_frenet_frame.x() = U_speed - coeff * std::cos( theta_2 );
+  target_speed_frenet_frame.y() = - coeff * std::sin( theta_2 );
+
+  // Rotation matrix to transform to global frame
+  Eigen::Matrix2d R;
+  R << std::cos(pose_center_lane.yaw), -std::sin(pose_center_lane.yaw),
+       std::sin(pose_center_lane.yaw),  std::cos(pose_center_lane.yaw);
+  
+  // Compute velocity in global frame
+  Eigen::Vector2d target_speed = R * target_speed_frenet_frame;
 
   // Compute vehicle-aligned longitudinal and lateral speeds
   Eigen::Vector2d yaw_versor( std::cos( current_state.yaw_angle ), std::sin( current_state.yaw_angle ) );
