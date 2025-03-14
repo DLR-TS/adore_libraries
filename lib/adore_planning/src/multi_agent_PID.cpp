@@ -264,6 +264,9 @@ MultiAgentPID::compute_distance_speed_offset_nearest_obstacle( const dynamics::T
     double                        object_s     = route.get_s_at_state( object_state );
     double                        distance     = object_s - ref_current_s;
 
+    if( distance < 1.0 )
+      continue;
+
     auto pose_at_distance = route.get_pose_at_distance_along_route( object_s );
 
     // Compute signed lateral offset (negative = left, positive = right)
