@@ -130,50 +130,6 @@ public:
     return submap;
   }
 
-  template<typename StartPoint, typename EndPoint>
-  Route
-  get_route( const StartPoint& start, const EndPoint& end ) const
-  {
-    Route route;
-    route.start.x       = start.x;
-    route.start.y       = start.y;
-    route.destination.x = end.x;
-    route.destination.y = end.y;
-
-    double route_cumulative_s = 0;
-
-    // Find nearest start and end points using the quadtree
-    double min_start_dist      = std::numeric_limits<double>::max();
-    auto   nearest_start_point = quadtree.get_nearest_point( start, min_start_dist );
-    if( !nearest_start_point )
-      return route;
-
-    size_t start_lane_id = nearest_start_point->parent_id;
-
-    double min_end_dist      = std::numeric_limits<double>::max();
-    auto   nearest_end_point = quadtree.get_nearest_point( end, min_end_dist );
-    if( !nearest_end_point )
-      return route;
-
-    size_t end_lane_id = nearest_end_point->parent_id;
-
-    // Find the best path between the start and end lanes
-    route.lane_id_route = lane_graph.get_best_path( start_lane_id, end_lane_id );
-
-    // Iterate over the route and process each lane
-    for( size_t i = 0; i < route.lane_id_route.size(); ++i )
-    {
-      const auto& current_lane = route.lane_id_route[i];
-      auto        lane         = lanes.at( current_lane );
-
-      auto lane_points = lane->borders.center;
-
-      route.add_lane_center( lane_points, nearest_start_point, nearest_end_point, lane->left_of_reference );
-    }
-    route.interpolate_center_lane( ROUTE_INTERPOLATION_DIST );
-    return route;
-  }
-
   template<typename Point>
   bool
   is_point_on_road( const Point& point )
