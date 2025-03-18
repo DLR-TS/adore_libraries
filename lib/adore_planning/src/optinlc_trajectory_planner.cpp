@@ -125,7 +125,7 @@ dynamics::Trajectory
 OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
                                            const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
 {
-  route_to_piecewise_polynomial reference_route = setup_optimizer_parameters_using_route( latest_route );
+  route_to_piecewise_polynomial reference_route = setup_optimizer_parameters_using_route( latest_route, current_state );
   auto                          start_time      = std::chrono::high_resolution_clock::now();
 
   // Initial state and input
@@ -287,10 +287,10 @@ OptiNLCTrajectoryPlanner::OptiNLCTrajectoryPlanner()
 }
 
 route_to_piecewise_polynomial
-OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::map::Route& latest_route )
+OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::map::Route&             latest_route,
+                                                                  const dynamics::VehicleStateDynamic& current_state )
 {
-  auto start_time  = std::chrono::high_resolution_clock::now();
-  distance_to_goal = latest_route.get_remaining_route_length();
+  auto start_time = std::chrono::high_resolution_clock::now();
 
   route_to_piecewise_polynomial route;
 
@@ -306,15 +306,7 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
     return route;
   }
 
-  size_t N = 0;
-  for( size_t i = 0; i < latest_route.center_lane.size(); i++ )
-  {
-    N++;
-    if( latest_route.center_lane[i].s > maximum_required_road_length )
-    {
-      break;
-    }
-  }
+  double state_s = latest_route.get_s( current_state );
 
   route_to_follow.s.clear();
   route_to_follow.x.clear();
@@ -324,15 +316,20 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   std::vector<double> w;
 
   double previous_s = 0.0;
-  for( size_t i = 0; i < N; i++ )
+  for( const auto& [s, point] : latest_route.center_lane )
   {
-    if( latest_route.center_lane[i].s - previous_s > 0.75 ) // adding points every 75 cm
+    if( s < state_s )
+      continue;
+    if( s - state_s > maximum_required_road_length )
+      break;
+    double local_progress = s - state_s;
+    if( local_progress - previous_s > 0.75 ) // adding points every 75 cm
     {
-      route_to_follow.s.push_back( latest_route.center_lane[i].s );
-      route_to_follow.x.push_back( latest_route.center_lane[i].x );
-      route_to_follow.y.push_back( latest_route.center_lane[i].y );
+      route_to_follow.s.push_back( local_progress );
+      route_to_follow.x.push_back( point.x );
+      route_to_follow.y.push_back( point.y );
       w.push_back( 1.0 );
-      previous_s = latest_route.center_lane[i].s;
+      previous_s = local_progress;
     }
   }
 
@@ -417,10 +414,13 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
   // dynamic reference velocity adjusting based on the error the reference and current velocity
   reference_velocity = reference_velocity + velocity_error_gain * ( reference_velocity - current_state.vx );
 
-  auto current_route_point_max_speed = latest_route.center_lane.front().max_speed;
-  if( current_route_point_max_speed.has_value() )
+  double min_dist = std::numeric_limits<double>::max();
+  auto   nearest  = latest_map.quadtree.get_nearest_point( current_state, min_dist );
+
+  if( nearest )
   {
-    reference_velocity = std::min( reference_velocity, current_route_point_max_speed.value() );
+    double current_route_point_max_speed = latest_map.get_lane_speed_limit( nearest.value().parent_id );
+    reference_velocity                   = std::min( reference_velocity, current_route_point_max_speed );
   }
 }
 
@@ -431,19 +431,27 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
   double distance_to_object_min     = std::numeric_limits<double>::max();
   double distance_to_maintain_ahead = min_distance_to_vehicle_ahead;
   double idm_velocity               = maximum_velocity;
+  double state_s                    = latest_route.get_s( current_state );
+
 
   for( const auto& [id, participant] : traffic_participants.participants )
   {
     math::Point2d object_position;
-    object_position.x                      = participant.state.x;
-    object_position.y                      = participant.state.y;
-    auto [within_lane, distance_to_object] = latest_route.get_distance_along_route( latest_map, object_position );
+    object_position.x          = participant.state.x;
+    object_position.y          = participant.state.y;
+    double distance_to_object  = latest_route.get_s( object_position );
+    double offset              = math::distance_2d( object_position, latest_route.get_pose_at_s( distance_to_object ) );
+    auto   map_point           = latest_route.get_map_point_at_s( distance_to_object );
+    bool   within_lane         = offset < latest_map.lanes.at( map_point.parent_id )->get_width( map_point.s );
+    distance_to_object        -= state_s;
 
     if( within_lane && distance_to_object < distance_to_object_min )
     {
       distance_to_object_min = distance_to_object;
     }
   }
+
+  distance_to_goal = latest_route.get_length() - state_s;
 
   double distance_for_idm = std::min( distance_to_object_min, distance_to_goal );
 

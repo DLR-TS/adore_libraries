@@ -168,13 +168,22 @@ public:
 
   template<typename QueryPoint>
   std::optional<Point>
-  get_nearest_point( const QueryPoint& query_point, double& min_dist ) const
+  get_nearest_point(
+    const QueryPoint& query_point, double& min_dist,
+    // default: accept all points
+    const std::function<bool( const Point& )>& filter = []( const Point& ) { return true; } ) const
   {
     std::optional<Point> nearest_point = std::nullopt;
 
     // Check all points in this node
     for( const auto& point : points )
     {
+      // Skip any point that fails the user-supplied filter
+      if( !filter( point ) )
+      {
+        continue;
+      }
+
       double dist = adore::math::distance_2d( point, query_point );
       if( dist < min_dist )
       {
@@ -183,7 +192,7 @@ public:
       }
     }
 
-    // Recursively check children if divided
+    // Recursively check children if this node is subdivided
     if( divided )
     {
       // Create a list of quadrants with their distances to the query point
@@ -194,17 +203,16 @@ public:
         { southeast->boundary.distance_to_point( query_point ), southeast.get() }
       };
 
-      // Sort quadrants based on their distance to the query point
+      // Sort quadrants by distance to the query point
       std::sort( quadrants.begin(), quadrants.end(), []( const auto& a, const auto& b ) { return a.first < b.first; } );
 
-      // Recursively search in quadrants that could contain a closer point
+      // Recursively search quadrants that might contain a closer point
       for( const auto& [dist_to_boundary, quadrant] : quadrants )
       {
+        // If the quadrant boundary is still within the current min_dist, it might have a closer point
         if( dist_to_boundary < min_dist )
         {
-          // Recursively get the nearest point in the child quadrant
-          auto child_nearest = quadrant->get_nearest_point( query_point, min_dist );
-
+          auto child_nearest = quadrant->get_nearest_point( query_point, min_dist, filter );
           if( child_nearest )
           {
             nearest_point = child_nearest;
@@ -212,7 +220,7 @@ public:
         }
         else
         {
-          // Prune search if the quadrant is farther than the current min_dist
+          // Prune search if the quadrant is definitely farther than our current best
           break;
         }
       }

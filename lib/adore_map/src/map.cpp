@@ -32,7 +32,7 @@ Map::get_lane_speed_limit( size_t lane_id ) const
     return speed_limit;
   }
 
-  return 1.0;
+  return 13.6;
 }
 
 

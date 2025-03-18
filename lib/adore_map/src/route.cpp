@@ -19,34 +19,32 @@ namespace map
 {
 
 void
-Route::add_route_section( Border& lane_to_add, const std::optional<MapPoint>& start_point, const std::optional<MapPoint>& end_point,
-                          bool reverse = false )
+Route::add_route_section( Border& lane_to_add, const MapPoint& start_point, const MapPoint& end_point, bool reverse = false )
 
 {
-  RouteSection next;
+  if( lane_to_add.interpolated_points.empty() )
+    return;
+  std::shared_ptr<RouteSection> next = std::make_shared<RouteSection>();
+  next->lane_id                      = lane_to_add.interpolated_points[0].parent_id;
+
   if( reverse )
   {
-    next.end_s   = lane_to_add.points.front().s;
-    next.start_s = lane_to_add.points.back().s;
+    next->end_s   = lane_to_add.interpolated_points.front().s;
+    next->start_s = lane_to_add.interpolated_points.back().s;
   }
   else
   {
-    next.start_s = lane_to_add.points.front().s;
-    next.end_s   = lane_to_add.points.back().s;
+    next->start_s = lane_to_add.interpolated_points.front().s;
+    next->end_s   = lane_to_add.interpolated_points.back().s;
   }
+  if( start_point.parent_id == next->lane_id )
+    next->start_s = start_point.s;
+  if( end_point.parent_id == next->lane_id )
+    next->end_s = end_point.s;
 
-  sections[lane_to_add.points[0].parent_id] = next;
-}
 
-double
-Route::get_remaining_route_length() const
-{
-  double length = 0.0;
-  for( const auto& [lane_id, section] : sections )
-  {
-    length += std::fabs( section.end_s - section.start_s );
-  }
-  return length;
+  lane_to_sections[next->lane_id] = next;
+  sections.push_back( next );
 }
 
 } // namespace map

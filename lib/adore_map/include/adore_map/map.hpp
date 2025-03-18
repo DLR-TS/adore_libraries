@@ -29,7 +29,6 @@
 #include "adore_map/quadtree.hpp"
 #include "adore_map/r2s_parser.h"
 #include "adore_map/road_graph.hpp"
-#include "adore_map/route.hpp"
 #include "adore_math/distance.h"
 
 namespace adore
@@ -156,8 +155,6 @@ public:
   }
 
 private:
-
-  constexpr static double ROUTE_INTERPOLATION_DIST = 0.05;
 };
 
 } // namespace map

@@ -44,12 +44,12 @@ LaneFollowPlanner::set_parameters( const std::map<std::string, double>& params )
 }
 
 dynamics::Trajectory
-LaneFollowPlanner::plan_trajectory( const dynamics::VehicleStateDynamic& current_state, const map::Route& route, const map::Map& local_map,
-                                    const dynamics::VehicleCommandLimits& limits )
+LaneFollowPlanner::plan_trajectory( const dynamics::VehicleStateDynamic& current_state, const std::deque<map::MapPoint>& route_points,
+                                    const map::Map& local_map, const dynamics::VehicleCommandLimits& limits )
 {
   desired_acceleration            = std::min( desired_acceleration, limits.max_acceleration );
   desired_deceleration            = -std::min( -desired_deceleration, limits.min_acceleration );
-  dynamics::Trajectory trajectory = generate_trajectory_from_route( current_state, local_map, route.center_lane, current_state.vx );
+  dynamics::Trajectory trajectory = generate_trajectory_from_route( current_state, local_map, route_points, current_state.vx );
   previous_state                  = current_state;
   return trajectory;
 }

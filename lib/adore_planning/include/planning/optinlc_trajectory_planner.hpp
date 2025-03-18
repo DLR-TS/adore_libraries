@@ -86,7 +86,8 @@ private:
     std::vector<double> width;
   } route_to_follow;
 
-  route_to_piecewise_polynomial setup_optimizer_parameters_using_route( const map::Route& latest_route );
+  route_to_piecewise_polynomial setup_optimizer_parameters_using_route( const adore::map::Route&             latest_route,
+                                                                        const dynamics::VehicleStateDynamic& current_state );
 
   double lateral_weight            = 0.01;
   double heading_weight            = 0.06;

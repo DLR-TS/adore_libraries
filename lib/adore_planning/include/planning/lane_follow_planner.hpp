@@ -32,7 +32,7 @@ public:
   LaneFollowPlanner();
 
   void                 set_parameters( const std::map<std::string, double>& params );
-  dynamics::Trajectory plan_trajectory( const dynamics::VehicleStateDynamic& current_state, const map::Route& route,
+  dynamics::Trajectory plan_trajectory( const dynamics::VehicleStateDynamic& current_state, const std::deque<map::MapPoint>& route_points,
                                         const map::Map& local_map, const dynamics::VehicleCommandLimits& limits );
 
   double       desired_acceleration     = 0.3;
