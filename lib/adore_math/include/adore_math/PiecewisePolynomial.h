@@ -12,8 +12,7 @@
  *    Reza Dariani
  *    Sanath Himasekhar Konthala
  ********************************************************************************/
-#ifndef PIECEWISEPOLYNOMIAL_H
-#define PIECEWISEPOLYNOMIAL_H
+#pragma once
 
 #include <vector>
 
@@ -96,4 +95,3 @@ private:
 
 } // namespace math
 } // namespace adore
-#endif PIECEWISEPOLYNOMIAL_H

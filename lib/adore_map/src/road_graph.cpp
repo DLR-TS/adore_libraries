@@ -32,7 +32,7 @@ RoadGraph::add_connection( Connection connection )
 }
 
 std::deque<LaneID>
-RoadGraph::get_best_path( LaneID from, LaneID to )
+RoadGraph::get_best_path( LaneID from, LaneID to ) const
 {
   // Priority queue to store (accumulated cost, LaneID)
   std::priority_queue<std::pair<double, LaneID>, std::vector<std::pair<double, LaneID>>, std::greater<>> pq;
@@ -67,7 +67,9 @@ RoadGraph::get_best_path( LaneID from, LaneID to )
     }
 
     // Explore successors (neighbors)
-    for( const auto& successor : to_successors[current_road] )
+    if( to_successors.count( current_road ) == 0 )
+      continue;
+    for( const auto& successor : to_successors.at( current_road ) )
     {
       // Find the connection between current_road and successor
       auto connection = find_connection( current_road, successor );
@@ -92,7 +94,7 @@ RoadGraph::get_best_path( LaneID from, LaneID to )
 }
 
 std::deque<LaneID>
-RoadGraph::reconstruct_path( LaneID from, LaneID to, const std::unordered_map<LaneID, LaneID>& previous_roads )
+RoadGraph::reconstruct_path( LaneID from, LaneID to, const std::unordered_map<LaneID, LaneID>& previous_roads ) const
 {
   std::deque<LaneID> path;
   LaneID             current = to;

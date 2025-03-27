@@ -47,7 +47,8 @@ dynamics::Trajectory
 LaneFollowPlanner::plan_trajectory( const dynamics::VehicleStateDynamic& current_state, const map::Route& route, const map::Map& local_map,
                                     const dynamics::VehicleCommandLimits& limits )
 {
-
+  desired_acceleration            = std::min( desired_acceleration, limits.max_acceleration );
+  desired_deceleration            = -std::min( -desired_deceleration, limits.min_acceleration );
   dynamics::Trajectory trajectory = generate_trajectory_from_route( current_state, local_map, route.center_lane, current_state.vx );
   previous_state                  = current_state;
   return trajectory;
@@ -136,7 +137,7 @@ LaneFollowPlanner::generate_trajectory_from_route( const dynamics::VehicleStateD
   }
 
   // Resample trajectory
-  dynamics::Trajectory trajectory = resample_trajectory( current_state, times, distances, filtered_points, speeds, curvatures );
+  dynamics::Trajectory trajectory = resample_trajectory( current_state, times, filtered_points, speeds, curvatures );
 
   // Check if trajectory is populated
   if( trajectory.states.empty() )
@@ -232,7 +233,7 @@ LaneFollowPlanner::compute_curvatures( const std::deque<map::MapPoint>& points )
     for( int j = -smoothing_window; j <= smoothing_window; ++j )
     {
       int index = i + j;
-      if( index >= 0 && index < n )
+      if( index >= 0 && static_cast<size_t>( index ) < n )
       {
         sum += curvatures[index];
         ++count;
@@ -310,8 +311,8 @@ LaneFollowPlanner::compute_cumulative_times( const std::vector<double>& distance
 
 dynamics::Trajectory
 LaneFollowPlanner::resample_trajectory( const dynamics::VehicleStateDynamic& current_state, const std::vector<double>& times,
-                                        const std::vector<double>& distances, const std::deque<map::MapPoint>& points,
-                                        const std::vector<double>& speeds, const std::vector<double>& curvatures )
+                                        const std::deque<map::MapPoint>& points, const std::vector<double>& speeds,
+                                        const std::vector<double>& curvatures )
 {
   dynamics::Trajectory trajectory;
   double               total_time = times.back();

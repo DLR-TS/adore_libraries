@@ -24,7 +24,6 @@ compute_curvature( double x1, double y1, double x2, double y2, double x3, double
   double dy2 = y3 - y2;
 
   double cross = dx1 * dy2 - dy1 * dx2;
-  double dot   = dx1 * dx2 + dy1 * dy2;
 
   double ds1 = std::sqrt( dx1 * dx1 + dy1 * dy1 );
   double ds2 = std::sqrt( dx2 * dx2 + dy2 * dy2 );

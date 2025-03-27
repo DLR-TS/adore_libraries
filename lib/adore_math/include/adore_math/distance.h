@@ -14,6 +14,8 @@
 #pragma once
 #include <math.h>
 
+#include <adore_math/polygon.h>
+
 namespace adore
 {
 namespace math
@@ -32,5 +34,9 @@ distance_2d( const PointType& a, const OtherPointType& b )
 {
   return std::sqrt( squared_distance_2d( a, b ) );
 }
+
+double polygon_distance( const Polygon2d& a, const Polygon2d& b );
+
+double distance_point_to_segment( const Point2d& point, const Point2d& seg_start, const Point2d& seg_end );
 } // namespace math
 } // namespace adore

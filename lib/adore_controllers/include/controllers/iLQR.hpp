@@ -21,6 +21,7 @@
 #include "adore_math/angles.h"
 #include "adore_math/distance.h"
 
+#include "dynamics/physical_vehicle_model.hpp"
 #include "dynamics/trajectory.hpp"
 
 namespace adore
@@ -33,9 +34,8 @@ class iLQR
 {
 private:
 
-  int    horizon_steps         = 10;  // Number of time steps
+  size_t horizon_steps         = 30;  // Number of time steps
   double dt                    = 0.1; // Time step duration
-  double wheelbase             = 2.7; // Vehicle wheelbase
   double heading_weight        = 10.0;
   double lateral_weight        = 50.0;
   double longitudinal_weight   = 1.0;
@@ -45,7 +45,7 @@ private:
   double jerk_weight           = 0.1;
   double steer_rate_weight     = 0.1;
   double convergence_threshold = 1e-6;
-  int    max_iterations        = 10000;
+  size_t max_iterations        = 10000;
 
   // Initialize variables for the backward pass
   std::vector<Eigen::MatrixXd> A_list;
@@ -86,6 +86,8 @@ private:
   bool debug_active = false;
 
 public:
+
+  dynamics::PhysicalVehicleModel model;
 
   dynamics::Trajectory get_last_trajectory();
 

@@ -28,12 +28,13 @@ using Controller = std::variant<NMPC, PID, iLQR>;
 
 inline void
 set_parameters( Controller& controller, const dynamics::VehicleCommandLimits& command_limits,
-                const std::map<std::string, double>& controller_settings )
+                const std::map<std::string, double>& controller_settings, const dynamics::PhysicalVehicleModel& model )
 {
   std::visit(
     [&]( auto& ctrl ) { // Capture by reference
       ctrl.limits = command_limits;
       ctrl.set_parameters( controller_settings );
+      ctrl.model = model;
     },
     controller );
 }

@@ -75,7 +75,7 @@ public:
   };
 
   // Constructor for Quadtree node
-  Quadtree( const Boundary& boundary, int capacity ) :
+  Quadtree( const Boundary& boundary, size_t capacity ) :
     boundary( boundary ),
     capacity( capacity ),
     divided( false )
@@ -222,7 +222,7 @@ public:
   }
 
   Boundary boundary;
-  int      capacity = 10;
+  size_t   capacity = 10;
 
 private:
 

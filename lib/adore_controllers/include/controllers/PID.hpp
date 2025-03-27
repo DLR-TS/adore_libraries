@@ -22,6 +22,7 @@
 #include "adore_math/angles.h"
 #include "adore_math/distance.h"
 
+#include "dynamics/physical_vehicle_model.hpp"
 #include "dynamics/trajectory.hpp"
 
 namespace adore
@@ -46,7 +47,7 @@ private:
   double dt                            = 0.05;
   double steering_comfort              = 2.5; // Comfort limit for steering change
   double acceleration_comfort          = 2.5; // Comfort limit for acceleration change
-  double lookahead_time                = 0.2;
+  double lookahead_time                = 0.5;
   double dt_trajectory                 = 0.1; // dt between points in the trajectory
 
   // State variables for integral control
@@ -61,6 +62,9 @@ private:
 
 
 public:
+
+  dynamics::PhysicalVehicleModel model;
+
 
   dynamics::VehicleCommandLimits limits;
   PID();

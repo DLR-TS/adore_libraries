@@ -64,8 +64,8 @@ private:
 
 
   dynamics::Trajectory resample_trajectory( const dynamics::VehicleStateDynamic& current_state, const std::vector<double>& times,
-                                            const std::vector<double>& distances, const std::deque<map::MapPoint>& points,
-                                            const std::vector<double>& speeds, const std::vector<double>& curvatures );
+                                            const std::deque<map::MapPoint>& points, const std::vector<double>& speeds,
+                                            const std::vector<double>& curvatures );
 
   std::vector<double> compute_cumulative_distances( const std::deque<map::MapPoint>& points );
 

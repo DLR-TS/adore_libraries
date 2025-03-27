@@ -28,6 +28,7 @@
 #include "OptiNLC_OCP.h"
 #include "OptiNLC_Options.h"
 #include "OptiNLC_Solver.h"
+#include "dynamics/physical_vehicle_model.hpp"
 #include "dynamics/trajectory.hpp"
 
 namespace adore
@@ -59,6 +60,8 @@ public:
   static constexpr int    control_points   = 20;
   static constexpr double sim_time         = 1.0; // Simulation time for the MPC
   static constexpr int    constraints_size = 0;
+
+  dynamics::PhysicalVehicleModel model;
 
 
 private:

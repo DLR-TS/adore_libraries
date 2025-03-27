@@ -53,58 +53,53 @@ OptiNLCTrajectoryOptimizer::setup_constraints(
 {
 
   // Define a simple input update method
-  ocp.setInputUpdate(
-    [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input, double currentTime, void* userData ) {
-      VECTOR<double, input_size> update_input = { input[DELTA], input[ACC] };
-      return update_input;
-    } );
+  ocp.setInputUpdate( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& input, double, void* ) {
+    VECTOR<double, input_size> update_input = { input[DELTA], input[ACC] };
+    return update_input;
+  } );
 
   // State Constraints
-  ocp.setUpdateStateLowerBounds(
-    [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& state, const VECTOR<double, input_size>& input ) {
-      VECTOR<double, OptiNLCTrajectoryOptimizer::state_size> state_constraints;
-      state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
-      return state_constraints;
-    } );
+  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>&, const VECTOR<double, input_size>& ) {
+    VECTOR<double, OptiNLCTrajectoryOptimizer::state_size> state_constraints;
+    state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
+    return state_constraints;
+  } );
 
-  ocp.setUpdateStateUpperBounds(
-    [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& state, const VECTOR<double, input_size>& input ) {
-      VECTOR<double, OptiNLCTrajectoryOptimizer::state_size> state_constraints;
-      state_constraints.setConstant( std::numeric_limits<double>::infinity() );
-      return state_constraints;
-    } );
+  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>&, const VECTOR<double, input_size>& ) {
+    VECTOR<double, OptiNLCTrajectoryOptimizer::state_size> state_constraints;
+    state_constraints.setConstant( std::numeric_limits<double>::infinity() );
+    return state_constraints;
+  } );
 
   // Input Constraints
-  ocp.setUpdateInputLowerBounds(
-    [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& state, const VECTOR<double, input_size>& input ) {
-      VECTOR<double, input_size> input_constraints;
-      input_constraints[0] = -limits.max_steering_angle;
-      input_constraints[1] = limits.min_acceleration;
-      return input_constraints;
-    } );
+  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>&, const VECTOR<double, input_size>& ) {
+    VECTOR<double, input_size> input_constraints;
+    input_constraints[0] = -limits.max_steering_angle;
+    input_constraints[1] = limits.min_acceleration;
+    return input_constraints;
+  } );
 
-  ocp.setUpdateInputUpperBounds(
-    [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& state, const VECTOR<double, input_size>& input ) {
-      VECTOR<double, input_size> input_constraints;
-      input_constraints[0] = limits.max_steering_angle;
-      input_constraints[1] = limits.max_acceleration;
-      return input_constraints;
-    } );
+  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>&, const VECTOR<double, input_size>& ) {
+    VECTOR<double, input_size> input_constraints;
+    input_constraints[0] = limits.max_steering_angle;
+    input_constraints[1] = limits.max_acceleration;
+    return input_constraints;
+  } );
 
   // Define a functions constraints method
-  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( 0.0 );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( -std::numeric_limits<double>::infinity() );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
+  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( std::numeric_limits<double>::infinity() );
     return functions_constraint;
@@ -116,10 +111,10 @@ OptiNLCTrajectoryOptimizer::setup_objective_function(
   OptiNLC_OCP<double, OptiNLCTrajectoryOptimizer::input_size, OptiNLCTrajectoryOptimizer::state_size, 0,
               OptiNLCTrajectoryOptimizer::control_points>& ocp )
 {
-  ocp.setObjectiveFunction( [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& state,
-                                 const VECTOR<double, input_size>& input, double current_time ) {
-    return state[L]; // Minimize the cost function `L`
-  } );
+  ocp.setObjectiveFunction(
+    [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& state, const VECTOR<double, input_size>&, double ) {
+      return state[L]; // Minimize the cost function `L`
+    } );
 }
 
 // Public method to get the next vehicle command based onOptiNLCTrajectoryOptimizer::::Trajectory
@@ -131,7 +126,7 @@ OptiNLCTrajectoryOptimizer::plan_trajectory( const dynamics::Trajectory&        
   auto start_time = std::chrono::high_resolution_clock::now();
 
   // Initial state and input
-  VECTOR<double, OptiNLCTrajectoryOptimizer::input_size> initial_input = { current_state.steering_angle, 0.25 };
+  VECTOR<double, OptiNLCTrajectoryOptimizer::input_size> initial_input = { current_state.steering_angle, 0.25 }; // MAGIC_NUMBER
   VECTOR<double, OptiNLCTrajectoryOptimizer::state_size> initial_state = { current_state.x, current_state.y, current_state.yaw_angle,
                                                                            current_state.vx, 0.0 };
 
@@ -139,16 +134,13 @@ OptiNLCTrajectoryOptimizer::plan_trajectory( const dynamics::Trajectory&        
   OptiNLC_OCP<double, OptiNLCTrajectoryOptimizer::input_size, OptiNLCTrajectoryOptimizer::state_size, 0,
               OptiNLCTrajectoryOptimizer::control_points>
     ocp( &options );
-  std::cerr << "Model based 2" << std::endl;
 
   // Set up dynamic model, objective, and constraints
   setup_dynamic_model( ocp, reference_trajectory );
 
   setup_objective_function( ocp );
-  std::cerr << "Model based 3" << std::endl;
 
   setup_constraints( ocp );
-  std::cerr << "Model based 4" << std::endl;
 
   // Solve the MPC problem
   OptiNLC_Solver<double, input_size, state_size, 0, control_points> solver( ocp );
@@ -156,7 +148,6 @@ OptiNLCTrajectoryOptimizer::plan_trajectory( const dynamics::Trajectory&        
   solver.solve( current_state.time, initial_state, initial_input );
 
   auto opt_x = solver.get_optimal_states();
-  auto opt_u = solver.get_optimal_inputs();
 
   dynamics::Trajectory planned_trajectory;
   for( int i = 0; i < control_points; i++ )
@@ -169,8 +160,6 @@ OptiNLCTrajectoryOptimizer::plan_trajectory( const dynamics::Trajectory&        
     state.time      = current_state.time + i * options.timeStep;
     planned_trajectory.states.push_back( state );
   }
-  std::cerr << "Model based 5" << std::endl;
-
 
   // Calculate time taken
   auto                          end_time        = std::chrono::high_resolution_clock::now();
@@ -190,7 +179,7 @@ OptiNLCTrajectoryOptimizer::setup_dynamic_model(
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& state,
                             const VECTOR<double, OptiNLCTrajectoryOptimizer::input_size>& input,
-                            VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& derivative, double current_time, void* user_data ) {
+                            VECTOR<double, OptiNLCTrajectoryOptimizer::state_size>& derivative, double current_time, void* ) {
     const double wheelbase = 2.69; // wheelbase, can be tuned based on your vehicle
 
     // Dynamic model equations
@@ -226,7 +215,6 @@ OptiNLCTrajectoryOptimizer::setup_dynamic_model(
 
     // Steering input cost
     double steering_cost = input[DELTA] * input[DELTA] * steering_weight;
-    double acc_cost      = input[ACC] * input[ACC] * acceleration_weight;
 
     // Total cost derivative
     derivative[L] = longitudinal_cost + lateral_cost + heading_cost + steering_cost + velocity_cost;

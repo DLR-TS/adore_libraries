@@ -53,7 +53,7 @@ MapLoader::generate_lane_id()
 }
 
 Map
-MapLoader::load_from_r2s_file( const std::string& map_file_location, bool ignore_non_driving )
+MapLoader::load_from_r2s_file( const std::string& map_file_location, bool /*ignore_non_driving*/ )
 {
   Map map;
 
