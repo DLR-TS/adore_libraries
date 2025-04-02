@@ -87,16 +87,14 @@ private:
 
   route_to_piecewise_polynomial setup_optimizer_parameters_using_route( const map::Route& latest_route );
 
-  double lateral_weight            = 0.01;
-  double heading_weight            = 0.06;
-  double steering_weight           = 1.0;
-  double dt                        = 0.1;  // 10ms frequency of the node
-  double wheelbase                 = 2.69; // MAGIC_NUMBER get ffrom vehicle params
-  double max_forward_speed         = 13.6;
-  double max_reverse_speed         = -2.0;
-  double max_steering_velocity     = 0.5;
-  double max_steering_acceleration = 1.5;
-  double near_goal_distance        = 20.0;
+  double lateral_weight     = 0.01;
+  double heading_weight     = 0.06;
+  double steering_weight    = 1.0;
+  double dt                 = 0.1; // 10ms frequency of the node
+  double wheelbase          = 2.69;
+  double max_forward_speed  = 13.6;
+  double max_reverse_speed  = -2.0;
+  double near_goal_distance = 50.0;
 
   // Curvature based velocity calculation members
   double              maximum_velocity   = 5.0; // Maximum set velocity
@@ -149,15 +147,12 @@ private:
 
   // Helper function to get reference velocity
   void                setup_reference_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                                const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
+                                                const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                                const double& time_headway );
   double              calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                              const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
+                                              const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                              const double& time_headway );
   std::vector<double> calculate_curvature( const std::vector<adore::math::Point2d>& path );
-
-  // Helper function to set up the solver and solve the problem
-  bool solve_mpc( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp,
-                  VECTOR<double, state_size>& initial_state, VECTOR<double, input_size>& initial_input, std::vector<double>& delta_output,
-                  std::vector<double>& acc_output, double current_time );
 
 public:
 
@@ -166,7 +161,8 @@ public:
 
   // Public method to get the next vehicle command based on OptiNLCTrajectoryPlanner
   dynamics::Trajectory plan_trajectory( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                        const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants );
+                                        const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                        const double time_headway );
 
   void set_parameters( const std::map<std::string, double>& params );
 };

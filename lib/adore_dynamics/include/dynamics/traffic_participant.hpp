@@ -7,7 +7,6 @@
  * Contributors:
  *    Sanath Himasekhar Konthala
  *    Giovanni Lucente
- *    Marko Mizdrak
  ********************************************************************************/
 #pragma once
 #include "adore_map/route.hpp"
@@ -17,7 +16,6 @@
 #include "adore_math/polygon.h"
 #include "adore_math/shape.h"
 
-#include "dynamics/physical_vehicle_model.hpp"
 #include "dynamics/trajectory.hpp"
 #include "dynamics/vehicle_state.hpp"
 
@@ -59,26 +57,23 @@ struct TrafficParticipant
   TrafficParticipant() {}
 
   // Constructor with state, id, length, width, height
-  TrafficParticipant( const VehicleStateDynamic& init_state, int id, TrafficParticipantClassification classification,
-                      const PhysicalVehicleParameters& physical_parameters ) :
+  TrafficParticipant( const VehicleStateDynamic& init_state, int id, TrafficParticipantClassification classification, double length,
+                      double width, double height ) :
     state( init_state ),
+    bounding_box( length, width, height ),
     classification( classification ),
-    id( id ),
-    physical_parameters( physical_parameters )
+    id( id )
   {}
 
   VehicleStateDynamic              state;          // Current state of the traffic participant
+  math::Box3d                      bounding_box;   // Bounding box of the traffic participant
   TrafficParticipantClassification classification; // Classification label
   int                              id;
-  PhysicalVehicleParameters        physical_parameters; // Physical parameters of the vehicle
 
   std::optional<math::Point2d> goal_point = std::nullopt; // Goal point
   std::optional<int>           v2x_id     = std::nullopt; // V2X ID
   std::optional<Trajectory>    trajectory = std::nullopt; // Predicted or planned trajectory
   std::optional<map::Route>    route      = std::nullopt; // Route information
-
-  // calculate participant corners
-  math::Polygon2d get_corners() const;
 };
 
 struct TrafficParticipantSet

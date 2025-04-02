@@ -2,4 +2,4 @@
 .tmp
 **.log
 cmake/ignore/ignore.log
-/.cache
+**.cache

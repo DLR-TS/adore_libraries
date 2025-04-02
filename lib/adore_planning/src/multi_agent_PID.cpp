@@ -20,6 +20,8 @@
 #include "adore_math/curvature.hpp"
 #include "adore_math/point.h"
 #include "adore_math/spline.h"
+#include "adore_math/vector.h"
+#include "adore_math/vector_operations.h"
 
 #include "dynamics/integration.hpp"
 #include "dynamics/vehicle_state.hpp"
@@ -58,103 +60,77 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
       k_goal_point = value;
     else if( name == "k_repulsive_force" )
       k_repulsive_force = value;
-    else if( name == "k_sigmoid" )
-      k_sigmoid = value;
     else if( name == "dt" )
       dt = value;
-    else if( name == "min_distance" )
-      min_distance = value;
-    else if( name == "time_headway" )
-      time_headway = value;
   }
-}
-
-dynamics::VehicleStateDynamic
-MultiAgentPID::get_current_state( const dynamics::TrafficParticipant& participant )
-{
-  if( participant.trajectory && !participant.trajectory->states.empty() )
-  {
-    return participant.trajectory->states.back();
-  }
-  return participant.state;
 }
 
 void
-MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_participant_set )
+MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_participant_set, const dynamics::VehicleCommandLimits& limits )
 {
   for( auto& [id, participant] : traffic_participant_set.participants )
   {
     participant.trajectory = dynamics::Trajectory();
-  }
-  // Precompute motion model lambdas for each participant.
-  std::map<int, MotionModel> motion_models;
-
-  for( auto& [id, participant] : traffic_participant_set.participants )
-  {
-    if( participant.physical_parameters.wheelbase == 0 )
-      participant.physical_parameters.wheelbase = 0.5;
-
-    motion_models[id] = [params = participant.physical_parameters]( const dynamics::VehicleStateDynamic& state,
-                                                                    const dynamics::VehicleCommand& cmd ) -> dynamics::VehicleStateDynamic {
-      return dynamics::kinematic_bicycle_model( state, params, cmd );
-    };
   }
 
   for( int i = 0; i < number_of_integration_steps; ++i )
   {
     for( auto& [id, participant] : traffic_participant_set.participants )
     {
-      if( participant.physical_parameters.wheelbase == 0 )
-        participant.physical_parameters.wheelbase = 0.5;
       dynamics::VehicleStateDynamic next_state;
-      dynamics::VehicleStateDynamic current_state = get_current_state( participant );
+      dynamics::VehicleStateDynamic current_state = participant.trajectory && !participant.trajectory->states.empty()
+                                                    ? participant.trajectory->states.back()
+                                                    : participant.state;
 
-      dynamics::VehicleCommand vehicle_command = dynamics::VehicleCommand( 0.0, 0.0 );
-
-      if( participant.route && !participant.route->center_lane.empty() )
+      if( !participant.route || participant.route->center_lane.empty() )
       {
-        vehicle_command = compute_vehicle_command( current_state, traffic_participant_set, id );
+        next_state = dynamics::euler_step( current_state, {}, dt, wheelbase );
+        participant.trajectory->states.push_back( next_state );
+        continue;
       }
 
-      next_state = dynamics::integrate_euler( current_state, vehicle_command, dt, motion_models[id] );
+      double current_trajectory_s = participant.route->get_s_at_state( current_state );
+      double target_distance      = current_trajectory_s + 0.5 + 0.1 * current_state.vx;
+      double goal_point_distance  = participant.route->center_lane.back().s - current_trajectory_s;
 
+      auto [closest_obstacle_distance, obstacle_speed, offset] = compute_distance_speed_offset_nearest_obstacle( traffic_participant_set,
+                                                                                                                 id );
+
+      math::Pose2d target_pose   = participant.route->get_pose_at_distance_along_route( target_distance );
+      double       error_lateral = compute_error_lateral_distance( current_state, target_pose );
+      double       error_yaw     = compute_error_yaw( current_state.yaw_angle, target_pose.yaw );
+
+      double obstacle_avoidance_longitudinal_speed_error = 0.0;
+      double obstacle_avoidance_lateral_speed_error      = 0.0;
+
+      if( offset > obstacle_avoidance_offset_threshold )
+      {
+        auto speed_component_errors = compute_obstacle_avoidance_speed_component_errors( current_state, current_trajectory_s,
+                                                                                         traffic_participant_set, id );
+        obstacle_avoidance_longitudinal_speed_error = speed_component_errors.first;
+        obstacle_avoidance_lateral_speed_error      = speed_component_errors.second;
+      }
+
+      dynamics::VehicleCommand vehicle_command;
+
+      vehicle_command.acceleration
+        = -k_speed
+          * ( current_state.vx - compute_idm_velocity( closest_obstacle_distance, goal_point_distance, obstacle_speed, current_state ) )
+        + k_obstacle_avoidance_longitudinal * obstacle_avoidance_longitudinal_speed_error;
+
+      vehicle_command.steering_angle = k_yaw * error_yaw + k_distance * error_lateral
+                                     + k_obstacle_avoidance_lateral * obstacle_avoidance_lateral_speed_error;
+
+      vehicle_command.clamp_within_limits( limits );
+
+      next_state                = dynamics::euler_step( current_state, vehicle_command, dt, wheelbase );
+      next_state.vx             = std::max( 0.0, next_state.vx );
       next_state.ax             = vehicle_command.acceleration;
       next_state.steering_angle = vehicle_command.steering_angle;
 
       participant.trajectory->states.push_back( next_state );
     }
   }
-}
-
-dynamics::VehicleCommand
-MultiAgentPID::compute_vehicle_command( const adore::dynamics::VehicleStateDynamic&   current_state,
-                                        const adore::dynamics::TrafficParticipantSet& traffic_participant_set, const int id )
-{
-  auto& participant = traffic_participant_set.participants.at( id );
-
-  double current_trajectory_s = participant.route->get_s_at_state( current_state );
-  double target_distance      = current_trajectory_s + 0.5 + 0.1 * current_state.vx;
-  double goal_point_distance  = participant.route->center_lane.back().s - current_trajectory_s;
-
-  math::Pose2d target_pose                                 = participant.route->get_pose_at_distance_along_route( target_distance );
-  double       error_lateral                               = compute_error_lateral_distance( current_state, target_pose );
-  double       error_yaw                                   = compute_error_yaw( current_state.yaw_angle, target_pose.yaw );
-  auto [closest_obstacle_distance, obstacle_speed, offset] = compute_distance_speed_offset_nearest_obstacle( traffic_participant_set, id );
-  double idm_vel = compute_idm_velocity( closest_obstacle_distance, goal_point_distance, obstacle_speed, current_state );
-
-  dynamics::VehicleCommand vehicle_command;
-  vehicle_command.steering_angle = k_yaw * error_yaw + k_distance * error_lateral;
-  vehicle_command.acceleration   = -k_speed * ( current_state.vx - idm_vel );
-
-  if( offset > obstacle_avoidance_offset_threshold && offset < 0.5 * lane_width )
-  {
-    auto speed_component_errors     = compute_obstacle_avoidance_speed_component_errors( current_state, traffic_participant_set, id );
-    vehicle_command.acceleration   += k_obstacle_avoidance_longitudinal * speed_component_errors.first;
-    vehicle_command.steering_angle += speed_component_errors.second * k_obstacle_avoidance_lateral;
-  }
-
-  vehicle_command.clamp_within_limits( limits );
-  return vehicle_command;
 }
 
 double
@@ -173,12 +149,14 @@ double
 MultiAgentPID::compute_idm_velocity( double obstacle_distance, double goal_distance, double obstacle_speed,
                                      const dynamics::VehicleStateDynamic& current_state )
 {
+  double min_distance = 8.0;
+  double time_headway = 3.0;
 
+  double effective_distance = std::min( obstacle_distance, goal_distance );
+  if( goal_distance < obstacle_distance )
+    min_distance = 0.0;
 
-  double effective_distance     = std::min( obstacle_distance, goal_distance );
-  double effective_min_distance = ( goal_distance < obstacle_distance ) ? 0.0 : min_distance;
-
-  double s_star = effective_min_distance + current_state.vx * time_headway
+  double s_star = min_distance + current_state.vx * time_headway
                 + current_state.vx * ( current_state.vx - obstacle_speed )
                     / ( 2 * std::sqrt( desired_acceleration * desired_deceleration ) );
 
@@ -193,65 +171,60 @@ MultiAgentPID::compute_error_yaw( double current_yaw, double target_yaw )
 }
 
 std::tuple<double, double, double>
-MultiAgentPID::compute_distance_speed_offset_nearest_obstacle( const dynamics::TrafficParticipantSet& traffic_participant_set,
-                                                               int                                    vehicle_id )
+MultiAgentPID::compute_distance_speed_offset_nearest_obstacle( dynamics::TrafficParticipantSet& traffic_participant_set, int vehicle_id )
 {
-  double closest_distance      = std::numeric_limits<double>::max();
-  double offset_closest_object = std::numeric_limits<double>::max();
-  double obstacle_speed        = 0.0;
-  // Get reference participant.
-  auto& ref_participant = traffic_participant_set.participants.at( vehicle_id );
-  // If there's no route available, return default values.
-  if( !ref_participant.route )
-  {
-    return { closest_distance, obstacle_speed, offset_closest_object };
-  }
 
-  auto&        route                 = ref_participant.route.value();
-  double       ref_current_s         = route.get_s_at_state( get_current_state( ref_participant ) );
-  const double lane_offset_threshold = 0.5 * lane_width;
+  double closest_distance = std::numeric_limits<double>::max();
+  double offset           = std::numeric_limits<double>::max();
+  double obstacle_speed   = 0.0;
+
+  auto& ref_participant = traffic_participant_set.participants[vehicle_id];
 
   for( const auto& [id, other_participant] : traffic_participant_set.participants )
   {
     if( id == vehicle_id )
       continue;
 
-    dynamics::VehicleStateDynamic object_state     = get_current_state( other_participant );
-    double                        object_s         = route.get_s_at_state( object_state );
-    double                        distance         = object_s - ref_current_s;
-    auto                          pose_at_distance = route.get_pose_at_distance_along_route( object_s );
-    double                        current_offset   = math::distance_2d( object_state, pose_at_distance );
+    const auto&                   trajectory   = other_participant.trajectory;
+    dynamics::VehicleStateDynamic object_state = ( trajectory && !trajectory->states.empty() ) ? trajectory->states.back()
+                                                                                               : other_participant.state;
 
-    if( current_offset > lane_offset_threshold )
+    if( !ref_participant.route )
       continue;
 
-    if( current_offset > obstacle_avoidance_offset_threshold )
+    auto&  route            = ref_participant.route.value();
+    double distance         = route.get_s_at_state( object_state );
+    auto   pose_at_distance = route.get_pose_at_distance_along_route( distance );
+
+    if( ref_participant.trajectory && !ref_participant.trajectory->states.empty() )
     {
-      offset_closest_object = current_offset;
-      continue;
+      distance -= route.get_s_at_state( ref_participant.trajectory->states.back() );
     }
 
-    // Update if this obstacle is closer than previous ones.
+    offset = math::distance_2d( object_state, pose_at_distance );
+    if( offset > obstacle_avoidance_offset_threshold || distance < 1.0 )
+      continue;
+
     if( distance < closest_distance )
     {
-      closest_distance      = distance;
-      obstacle_speed        = object_state.vx;
-      offset_closest_object = current_offset;
+      closest_distance = distance;
+      obstacle_speed   = object_state.vx;
     }
   }
 
-  return { closest_distance, obstacle_speed, offset_closest_object };
+  return { closest_distance, obstacle_speed, offset };
 }
 
 std::pair<double, double>
-MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics::VehicleStateDynamic&   current_state,
-                                                                  const dynamics::TrafficParticipantSet& traffic_participant_set,
-                                                                  int                                    vehicle_id )
+MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics::VehicleStateDynamic& current_state,
+                                                                  const double                         current_s,
+                                                                  dynamics::TrafficParticipantSet& traffic_participant_set, int vehicle_id )
 {
   double lateral_speed_error      = 0.0;
   double longitudinal_speed_error = 0.0;
-  auto&  ref_participant          = traffic_participant_set.participants.at( vehicle_id );
-  auto&  ref_participant_route    = ref_participant.route.value();
+  double distance_treshold        = 8.0;
+  double k_sigmoid                = 5.0;
+  auto&  ref_participant_route    = traffic_participant_set.participants[vehicle_id].route.value();
 
   for( const auto& [id, other_participant] : traffic_participant_set.participants )
   {
@@ -259,63 +232,64 @@ MultiAgentPID::compute_obstacle_avoidance_speed_component_errors( const dynamics
     {
       continue;
     }
-
-    double distance_on_the_route = ref_participant_route.get_s_at_state( other_participant.state );
-    auto   pose_at_distance      = ref_participant_route.get_pose_at_distance_along_route( distance_on_the_route );
-
-    distance_on_the_route -= ref_participant_route.get_s_at_state( get_current_state( ref_participant ) );
-
-    double offset = math::distance_2d( other_participant.state, pose_at_distance );
-
-    if( offset > 0.5 * lane_width )
-    {
-      continue;
-    }
-
     double distance_to_object                              = math::distance_2d( current_state, other_participant.state );
-    double activation_weight                               = sigmoid_activation( distance_to_object, min_distance, k_sigmoid );
-    auto [target_longitudinal_speed, target_lateral_speed] = compute_target_speed_components( current_state, other_participant.state,
+    double activation_weight                               = sigmoid_activation( distance_to_object, distance_treshold, k_sigmoid );
+    auto [target_longitudinal_speed, target_lateral_speed] = compute_target_speed_components( current_state, 
+                                                                                              other_participant.state,
                                                                                               ref_participant_route );
 
     lateral_speed_error      = lateral_speed_error + activation_weight * ( target_lateral_speed - current_state.vy );
     longitudinal_speed_error = longitudinal_speed_error + activation_weight * ( target_longitudinal_speed - current_state.vx );
   }
+
+  // std::cerr << "error speed components, long: " << longitudinal_speed_error << " lat: " << lateral_speed_error << "\n";
   return std::make_pair( longitudinal_speed_error, lateral_speed_error );
 }
 
 std::pair<double, double>
 MultiAgentPID::compute_target_speed_components( const dynamics::VehicleStateDynamic& current_state,
-                                                const dynamics::VehicleStateDynamic& other_participant_state, const map::Route& route )
+                                                const dynamics::VehicleStateDynamic& other_participant_state, map::Route& route )
 {
-  constexpr double object_radius = 2.0;
-  constexpr double U_speed       = 3.0;
+  double object_radius             = 2.5;
+  double target_longitudinal_speed = 0.0;
+  double target_lateral_speed      = 0.0;
+  double U_speed = 3.0;
+  // relative angle of the current state
+  math::Vector2d distance_vector    = math::get_vector_from_a_to_b( current_state, other_participant_state );
+  double         distance_to_object = math::get_l2_norm( distance_vector );
+  double         s_object           = route.get_s_at_state( other_participant_state);
+  auto           pose_center_lane   = route.get_pose_at_distance_along_route( s_object );
+  math::Vector2d center_lane_versor = math::get_versor_from_angle( pose_center_lane.yaw );
+  double         theta              = math::get_angle_between_two_vectors( center_lane_versor, distance_vector );
 
-  // Compute distance vector and its norm
-  Eigen::Vector2d distance_vector( other_participant_state.x - current_state.x, other_participant_state.y - current_state.y );
-  double          distance_to_object = distance_vector.norm();
+  // fluidodynamic target longitudinal (with respect to the lane) speed
+  double x_speed_norm = U_speed
+                      - ( ( object_radius ) * (object_radius) *U_speed * std::cos( 2 * theta ) )
+                          / ( ( distance_to_object ) * ( distance_to_object ) );
 
-  // Compute lane-aligned vectors
-  double          s_object         = route.get_s_at_state( other_participant_state );
-  auto            pose_center_lane = route.get_pose_at_distance_along_route( s_object );
-  Eigen::Vector2d center_lane_versor( std::cos( pose_center_lane.yaw ), std::sin( pose_center_lane.yaw ) );
+  // fluidodynamic target lateral (with respect to the lane) speed
+  double y_speed_norm = -( ( object_radius ) * (object_radius) *U_speed * std::sin( 2 * theta ) )
+                      / ( ( distance_to_object ) * ( distance_to_object ) );
 
-  // Compute angle between lane direction and distance vector
-  double theta           = std::atan2( distance_vector.y(), distance_vector.x() ) - pose_center_lane.yaw;
-  double theta_2         = 2 * theta;
-  double inv_distance_sq = 1.0 / ( distance_to_object * distance_to_object );
-  double coeff           = object_radius * object_radius * U_speed * inv_distance_sq;
+  math::Vector2d x_speed_versor = math::get_versor_from_angle( pose_center_lane.yaw ); // vx is the speed component lane direction
+  math::Vector2d y_speed_versor = math::get_perpendicular_versor( x_speed_versor );    // vy is perpendicular to the lane
 
-  // Fluidodynamic target speeds
-  Eigen::Vector2d target_speed = U_speed * center_lane_versor - coeff * Eigen::Vector2d( std::cos( theta_2 ), std::sin( theta_2 ) );
+  math::Vector2d x_speed_vector = math::vector_scalar_product( x_speed_versor, x_speed_norm );
+  math::Vector2d y_speed_vector = math::vector_scalar_product( y_speed_versor, y_speed_norm );
+  math::Vector2d target_speed   = math::vector_sum( x_speed_vector, y_speed_vector );
 
-  // Compute vehicle-aligned longitudinal and lateral speeds
-  Eigen::Vector2d yaw_versor( std::cos( current_state.yaw_angle ), std::sin( current_state.yaw_angle ) );
-  Eigen::Vector2d lateral_direction_versor( -yaw_versor.y(), yaw_versor.x() ); // Perpendicular vector
+  // std::cerr << "components, vx: " << x_speed_norm << " vy: " << y_speed_norm << " theta: " << theta << "\n";
+  // std::cerr << " components, vx absolute: " << target_speed.x << " vy absolute: " << target_speed.y << " \n";
 
-  double target_longitudinal_speed = yaw_versor.dot( target_speed );
-  double target_lateral_speed      = lateral_direction_versor.dot( target_speed );
+  math::Vector2d yaw_versor               = math::get_versor_from_angle( current_state.yaw_angle );
+  math::Vector2d lateral_direction_versor = math::get_perpendicular_versor( yaw_versor );
 
-  return { target_longitudinal_speed, target_lateral_speed };
+  target_longitudinal_speed = math::scalar_product( yaw_versor, target_speed );
+  target_lateral_speed      = math::scalar_product( lateral_direction_versor, target_speed );
+
+  // std::cerr << "long speed: " << target_longitudinal_speed << " lateral speed: " << target_lateral_speed << "\n";
+
+  return std::make_pair( target_longitudinal_speed, target_lateral_speed );
 }
 
 double

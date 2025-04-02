@@ -54,57 +54,58 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
 {
 
   // Define a simple input update method
-  ocp.setInputUpdate( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& input, double, void* ) {
-    VECTOR<double, input_size> update_input = { input[dDELTA] };
-    return update_input;
-  } );
+  ocp.setInputUpdate(
+    [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input, double currentTime, void* userData ) {
+      VECTOR<double, input_size> update_input = { input[dDELTA] };
+      return update_input;
+    } );
 
   // State Constraints
-  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
     state_constraints[V]      = max_reverse_speed;
     state_constraints[DELTA]  = -limits.max_steering_angle;
-    state_constraints[dDELTA] = -max_steering_velocity;
+    state_constraints[dDELTA] = -0.5;
     return state_constraints;
   } );
 
-  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, state_size> state_constraints;
     state_constraints.setConstant( std::numeric_limits<double>::infinity() );
     state_constraints[V]      = max_forward_speed;
     state_constraints[DELTA]  = limits.max_steering_angle;
-    state_constraints[dDELTA] = max_steering_velocity;
+    state_constraints[dDELTA] = 0.5;
     return state_constraints;
   } );
 
   // Input Constraints
-  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, input_size> input_constraints;
-    input_constraints[ddDELTA] = -max_steering_acceleration;
+    input_constraints[ddDELTA] = -1.5;
     return input_constraints;
   } );
 
-  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, input_size> input_constraints;
-    input_constraints[ddDELTA] = max_steering_acceleration;
+    input_constraints[ddDELTA] = 1.5;
     return input_constraints;
   } );
 
   // Define a functions constraints method
-  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( 0.0 );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( -std::numeric_limits<double>::infinity() );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( std::numeric_limits<double>::infinity() );
     return functions_constraint;
@@ -114,7 +115,7 @@ OptiNLCTrajectoryPlanner::setup_constraints( OptiNLC_OCP<double, input_size, sta
 void
 OptiNLCTrajectoryPlanner::setup_objective_function( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp )
 {
-  ocp.setObjectiveFunction( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>&, double ) {
+  ocp.setObjectiveFunction( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input, double current_time ) {
     return state[L]; // Minimize the cost function `L`
   } );
 }
@@ -122,7 +123,8 @@ OptiNLCTrajectoryPlanner::setup_objective_function( OptiNLC_OCP<double, input_si
 // Public method to get the next vehicle command based on OptiNLCTrajectoryPlanner
 dynamics::Trajectory
 OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                           const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
+                                           const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                           const double time_headway )
 {
   route_to_piecewise_polynomial reference_route = setup_optimizer_parameters_using_route( latest_route );
   auto                          start_time      = std::chrono::high_resolution_clock::now();
@@ -146,7 +148,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   }
 
   // Set up reference velocity
-  setup_reference_velocity( latest_route, current_state, latest_map, traffic_participants );
+  setup_reference_velocity( latest_route, current_state, latest_map, traffic_participants, time_headway );
 
   // Set up dynamic model, objective, and constraints
   setup_dynamic_model( ocp );
@@ -161,6 +163,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   solver.solve( current_state.time, initial_state, initial_input );
 
   auto   opt_x                   = solver.get_optimal_states();
+  auto   opt_u                   = solver.get_optimal_inputs();
   auto   time                    = solver.getTime();
   double last_objective_function = solver.get_final_objective_function();
 
@@ -169,10 +172,10 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   {
     bad_counter = 0;
   }
-  for( size_t i = 0; i < control_points / 2; i++ )
+  for( int i = 0; i < control_points / 2; i++ )
   {
     if( last_objective_function > 20.0 || opt_x[i * state_size + V] > 14.5 || opt_x[i * state_size + V] < 0.0
-        || opt_x[i * state_size + dDELTA] > 1.5 ) // MAGIC_NUMBERS
+        || opt_x[i * state_size + dDELTA] > 1.5 )
     {
       bad_condition  = true;
       bad_counter   += 1;
@@ -181,7 +184,7 @@ OptiNLCTrajectoryPlanner::plan_trajectory( const map::Route& latest_route, const
   }
 
   dynamics::Trajectory planned_trajectory;
-  for( size_t i = 0; i < control_points; i++ )
+  for( int i = 0; i < control_points; i++ )
   {
     dynamics::VehicleStateDynamic state;
     state.x              = opt_x[i * state_size + X];
@@ -222,16 +225,16 @@ void
 OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, state_size, constraints_size, control_points>& ocp )
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input,
-                            VECTOR<double, state_size>& derivative, double, void* ) {
-    double tau = 2.5; // Higher value means slower acceleration MAGIC_NUMBER
+                            VECTOR<double, state_size>& derivative, double current_time, void* user_data ) {
+    double tau = 2.5; // Higher value means slower acceleration
 
     if( reference_velocity - state[V] > 0 )
     {
-      tau = 2.5; // Higher value for smooth acceleration MAGIC_NUMBER
+      tau = 2.5; // Higher value for smooth acceleration
     }
     else
     {
-      tau = 1.25; // Lower value for quick braking MAGIC_NUMBER
+      tau = 2.0; // Lower value for quick braking
     }
 
     // Dynamic model equations
@@ -266,7 +269,7 @@ OptiNLCTrajectoryPlanner::setup_dynamic_model( OptiNLC_OCP<double, input_size, s
     heading_cost        *= heading_cost * heading_weight;
 
     // Steering input cost
-    // double steering_cost = state[DELTA] * state[DELTA] * steering_weight;
+    double steering_cost = state[DELTA] * state[DELTA] * steering_weight;
 
     // Total cost derivative
     derivative[L] = lateral_cost + heading_cost;
@@ -294,22 +297,22 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   distance_to_goal = latest_route.get_remaining_route_length();
 
   route_to_piecewise_polynomial route;
-  double                        sim_time = 3.0; // 3.0 seconds road ahead with 50km/h speed MAGIC_NUMBER
+  double                        sim_time = 3.0; // 3.0 seconds road ahead with 50km/h speed
 
   double maximum_required_road_length = sim_time * ( 13.6 + 1. ); // 13.6 maximum urban velocity, 1. extension window for end of horizon, if
                                                                   // starting point of optimization was bad
-  if( maximum_required_road_length < 0.10 )                       // MAGIC_NUMBER
+  if( maximum_required_road_length < 0.10 )
   {
     return route;
   }
 
-  if( latest_route.center_lane.empty() )
+  if( latest_route.center_lane.size() < 1 )
   {
     return route;
   }
 
-  size_t N = 0;
-  for( size_t i = 0; i < latest_route.center_lane.size(); i++ )
+  int N = 0;
+  for( int i = 0; i < latest_route.center_lane.size(); i++ )
   {
     N++;
     if( latest_route.center_lane[i].s > maximum_required_road_length )
@@ -326,9 +329,9 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
   std::vector<double> w;
 
   double previous_s = 0.0;
-  for( size_t i = 0; i < N; i++ )
+  for( int i = 0; i < N; i++ )
   {
-    if( latest_route.center_lane[i].s - previous_s > 0.75 ) // MAGIC_NUMBER
+    if( latest_route.center_lane[i].s - previous_s > 0.75 )
     {
       route_to_follow.s.push_back( latest_route.center_lane[i].s );
       route_to_follow.x.push_back( latest_route.center_lane[i].x );
@@ -343,14 +346,14 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
     return route;
   }
   route_to_follow.s[0] = 0.0; // overwriting the first element to 0 (start from ego vehicle)
-  route.x              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.x, w, 0.9 ); // MAGIC_NUMBER
-  route.y              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.y, w, 0.9 ); // MAGIC_NUMBER
+  route.x              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.x, w, 0.9 );
+  route.y              = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.y, w, 0.9 );
 
   std::vector<double> x, dx;
   std::vector<double> y, dy;
   pp.CubicSplineEvaluation( x, dx, route_to_follow.s, route.x );
   pp.CubicSplineEvaluation( y, dy, route_to_follow.s, route.y );
-  for( size_t i = 0; route_to_follow.s.size() > 0 && i < route_to_follow.s.size() - 1; i++ )
+  for( int i = 0; i < route_to_follow.s.size() - 1; i++ )
   {
     if( dx[i] == 0.0 || dx.size() < 1 || dy.size() < 1 )
     {
@@ -359,7 +362,7 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
     route_to_follow.psi.push_back( std::atan2( dy[i], dx[i] ) );
   }
   route_to_follow.psi[route_to_follow.s.size() - 1] = route_to_follow.psi[route_to_follow.s.size() - 2];
-  route.heading = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.psi, w, 0.75 ); // MAGIC_NUMBER
+  route.heading                                     = pp.CubicSplineSmoother( route_to_follow.s, route_to_follow.psi, w, 0.75 );
 
   // Calculate time taken
   auto                          end_time        = std::chrono::high_resolution_clock::now();
@@ -372,8 +375,8 @@ OptiNLCTrajectoryPlanner::setup_optimizer_parameters_using_route( const adore::m
 
 void
 OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                                    const map::Map&                        latest_map,
-                                                    const dynamics::TrafficParticipantSet& traffic_participants )
+                                                    const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                                    const double& time_headway )
 {
   std::vector<adore::math::Point2d> path_for_curvature;
   for( int i = 0; i < look_ahead_for_curvature; i++ )
@@ -386,7 +389,7 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
   }
 
   std::vector<double> curvature  = calculate_curvature( path_for_curvature );
-  distance_moved                += current_state.vx * 0.1; // MAGIC_NUMBER
+  distance_moved                += current_state.vx * 0.1;
   if( distance_moved > distance_to_add_behind )
   {
     curvature_behind.push_back( curvature[0] );
@@ -404,7 +407,7 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
   double max_curvature = *std::max_element( total_curvature.begin(), total_curvature.end() );
   reference_velocity   = maximum_velocity / ( 1 + curvature_weight * max_curvature );
 
-  double idm_velocity = calculate_idm_velocity( latest_route, current_state, latest_map, traffic_participants );
+  double idm_velocity = calculate_idm_velocity( latest_route, current_state, latest_map, traffic_participants, time_headway );
   reference_velocity  = std::min( reference_velocity, idm_velocity );
 
   // dynamic reference velocity adjusting based on the error the reference and current velocity
@@ -419,11 +422,13 @@ OptiNLCTrajectoryPlanner::setup_reference_velocity( const map::Route& latest_rou
 
 double
 OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route, const dynamics::VehicleStateDynamic& current_state,
-                                                  const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants )
+                                                  const map::Map& latest_map, const dynamics::TrafficParticipantSet& traffic_participants,
+                                                  const double& time_headway )
 {
   double distance_to_object_min     = std::numeric_limits<double>::max();
   double distance_to_maintain_ahead = min_distance_to_vehicle_ahead;
   double idm_velocity               = maximum_velocity;
+  desired_time_headway              = time_headway; // dynamic time headway from decision maker
 
   for( const auto& [id, participant] : traffic_participants.participants )
   {
@@ -432,7 +437,7 @@ OptiNLCTrajectoryPlanner::calculate_idm_velocity( const map::Route& latest_route
     object_position.y                      = participant.state.y;
     auto [within_lane, distance_to_object] = latest_route.get_distance_along_route( latest_map, object_position );
 
-    if( within_lane && distance_to_object < distance_to_object_min && distance_to_object > 0.2 ) // MAGIC_NUMBER
+    if( within_lane && distance_to_object < distance_to_object_min && distance_to_object > 0.2 )
     {
       distance_to_object_min = distance_to_object;
     }

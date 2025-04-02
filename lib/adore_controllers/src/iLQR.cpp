@@ -145,6 +145,8 @@ iLQR::set_parameters( const std::map<std::string, double>& params )
       max_iterations = static_cast<int>( value );
     else if( name == "dt" )
       dt = value;
+    else if( name == "wheelbase" )
+      wheelbase = value;
     else if( name == "heading_weight" )
       heading_weight = value;
     else if( name == "vel_weight" )
@@ -173,7 +175,7 @@ iLQR::set_parameters( const std::map<std::string, double>& params )
 dynamics::VehicleCommand
 iLQR::get_next_vehicle_command( const dynamics::Trajectory& in_trajectory, const dynamics::VehicleStateDynamic& current_state )
 {
-  const size_t                          T = std::min( horizon_steps, in_trajectory.states.size() );
+  const int                             T = std::min( horizon_steps, static_cast<int>( in_trajectory.states.size() ) );
   std::vector<dynamics::VehicleCommand> u_traj( T, dynamics::VehicleCommand( 0.0, 0.0 ) );
 
 
@@ -196,19 +198,19 @@ iLQR::get_next_vehicle_command( const dynamics::Trajectory& in_trajectory, const
 
   double last_total_cost     = std::numeric_limits<double>::infinity();
   bool   convergence_reached = false;
-  size_t iteration           = 0;
+  int    iteration           = 0;
   while( iteration < max_iterations )
   {
     iteration++;
     x_traj.states[0] = current_state;
-    for( size_t t = 0; t < T - 1; ++t )
+    for( int t = 0; t < T - 1; ++t )
     {
-      x_traj.states[t + 1] = dynamics::integrate_euler( x_traj.states[t], u_traj[t], dt, model.motion_model );
+      x_traj.states[t + 1] = dynamics::euler_step( x_traj.states[t], u_traj[t], dt, wheelbase );
     }
 
     // Calculate total cost for the current iteration
     double total_cost = 0.0;
-    for( size_t t = 0; t < T - 1; ++t )
+    for( int t = 0; t < T - 1; ++t )
     {
       const dynamics::VehicleCommand& u_prev  = ( t > 0 ) ? u_traj[t - 1]
                                                           : dynamics::VehicleCommand( current_state.steering_angle, current_state.ax );
@@ -279,7 +281,7 @@ iLQR::warm_start( std::vector<adore::dynamics::VehicleCommand>& u_traj )
 {
   size_t max_T = u_traj.size() < previous_u_traj.size() ? u_traj.size() : previous_u_traj.size();
   // Shift the previous trajectory one step forward
-  for( size_t t = 0; t < max_T; ++t )
+  for( int t = 0; t < max_T; ++t )
   {
     u_traj[t] = previous_u_traj[t + 1];
   }
@@ -321,7 +323,9 @@ iLQR::line_search( double& line_step, const double min_step, const int T, const 
       u_traj_new[t] = u_new;
 
       // Simulate dynamics
-      x_traj_new.states[t + 1] = dynamics::integrate_euler( x_traj_new.states[t], u_new, dt, model.motion_model );
+      const dynamics::VehicleStateDynamic& xt = x_traj_new.states[t];
+
+      x_traj_new.states[t + 1] = dynamics::euler_step( xt, u_new, dt, wheelbase );
 
       // Calculate predicted decrease as -grad(J) * du * line_step
       Eigen::VectorXd grad_J  = l_u_list[t]; // Gradient of cost wrt control at time t
@@ -446,12 +450,12 @@ iLQR::extract_dynamics_linearization( const int T, adore::dynamics::Trajectory& 
     A( 1, 2 )         = vx * cos_yaw * dt;
     A( 1, 3 )         = sin_yaw * dt;
     A( 2, 2 )         = 1.0;
-    A( 2, 3 )         = ( tan_delta / model.params.wheelbase ) * dt;
+    A( 2, 3 )         = ( tan_delta / wheelbase ) * dt;
     A( 3, 3 )         = 1.0;
 
     // Control derivatives
     Eigen::MatrixXd B = Eigen::MatrixXd::Zero( n_x, n_u );
-    B( 2, 1 )         = ( vx / model.params.wheelbase ) * sec_delta_squared * dt;
+    B( 2, 1 )         = ( vx / wheelbase ) * sec_delta_squared * dt;
     B( 3, 0 )         = dt;
 
     A_list[t] = A;

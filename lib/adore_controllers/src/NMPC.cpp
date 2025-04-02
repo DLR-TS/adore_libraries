@@ -55,33 +55,34 @@ void
 NMPC::setup_constraints( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_size, 0, NMPC::control_points>& ocp )
 {
   // Define a simple input update method
-  ocp.setInputUpdate( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& input, double, void* ) {
-    VECTOR<double, input_size> update_input = { input[DELTA], input[ACC] };
-    return update_input;
-  } );
+  ocp.setInputUpdate(
+    [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input, double currentTime, void* userData ) {
+      VECTOR<double, input_size> update_input = { input[DELTA], input[ACC] };
+      return update_input;
+    } );
 
   // State Constraints
-  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, NMPC::state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateStateLowerBounds( [&]( const VECTOR<double, NMPC::state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, NMPC::state_size> state_constraints;
     state_constraints.setConstant( -std::numeric_limits<double>::infinity() );
     return state_constraints;
   } );
 
-  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, NMPC::state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateStateUpperBounds( [&]( const VECTOR<double, NMPC::state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, NMPC::state_size> state_constraints;
     state_constraints.setConstant( std::numeric_limits<double>::infinity() );
     return state_constraints;
   } );
 
   // Input Constraints
-  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, NMPC::state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateInputLowerBounds( [&]( const VECTOR<double, NMPC::state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, input_size> input_constraints;
     input_constraints[0] = -limits.max_steering_angle; // Steering angle limit
     input_constraints[1] = limits.min_acceleration;    // Acceleration limit
     return input_constraints;
   } );
 
-  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, NMPC::state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateInputUpperBounds( [&]( const VECTOR<double, NMPC::state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, input_size> input_constraints;
     input_constraints[0] = limits.max_steering_angle; // Steering angle limit
     input_constraints[1] = limits.max_acceleration;   // Acceleration limit
@@ -89,19 +90,19 @@ NMPC::setup_constraints( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_size,
   } );
 
   // Define a functions constraints method
-  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateFunctionConstraints( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( 0.0 );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateFunctionConstraintsLowerBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( -std::numeric_limits<double>::infinity() );
     return functions_constraint;
   } );
 
-  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>&, const VECTOR<double, input_size>& ) {
+  ocp.setUpdateFunctionConstraintsUpperBounds( [&]( const VECTOR<double, state_size>& state, const VECTOR<double, input_size>& input ) {
     VECTOR<double, constraints_size> functions_constraint;
     functions_constraint.setConstant( std::numeric_limits<double>::infinity() );
     return functions_constraint;
@@ -111,9 +112,16 @@ NMPC::setup_constraints( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_size,
 void
 NMPC::setup_objective_function( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_size, 0, NMPC::control_points>& ocp )
 {
-  ocp.setObjectiveFunction( [&]( const VECTOR<double, NMPC::state_size>& state, const VECTOR<double, input_size>&, double ) {
-    return state[L]; // Minimize the cost function `L`
-  } );
+  ocp.setObjectiveFunction(
+    [&]( const VECTOR<double, NMPC::state_size>& state, const VECTOR<double, input_size>& input, double current_time ) {
+      return state[L]; // Minimize the cost function `L`
+    } );
+}
+
+double
+NMPC::get_objective_function()
+{
+  return objective_function;
 }
 
 // Helper function to set up the solver and solve the problem
@@ -128,6 +136,8 @@ NMPC::solve_mpc( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_size, 0, NMPC
 
   solver.solve( current_time, initial_state, initial_input );
 
+  auto opt_x = solver.get_optimal_states();
+
   auto opt_u = solver.get_optimal_inputs();
 
   for( int i = 0; i < control_points; i++ )
@@ -136,6 +146,7 @@ NMPC::solve_mpc( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_size, 0, NMPC
     acc_output.push_back( opt_u[i * input_size + 1] );
   }
 
+  objective_function = solver.get_final_objective_function();
 
   return solver.get_final_objective_function() <= 40.0;
 }
@@ -167,7 +178,29 @@ NMPC::get_next_vehicle_command( const dynamics::Trajectory& trajectory, const dy
 
   return_command.steering_angle = delta_output[0];
   return_command.acceleration   = acc_output[0];
+
+  if( counter > 4 )
+  {
+    counter = 0;
+  }
+
+  if( objective_function < 5.0 && counter < 5 )
+  {
+    counter                       = 0;
+    last_acceleration             = acc_output;
+    last_steering_angle           = delta_output;
+    return_command.steering_angle = delta_output[0];
+    return_command.acceleration   = acc_output[0];
+  }
+  else
+  {
+    counter++;
+    return_command.steering_angle = last_steering_angle[counter];
+    return_command.acceleration   = last_acceleration[counter];
+  }
+  std::cerr << "objective function: " << objective_function << " counter: " << counter << std::endl;
   std::cerr << "opt out steer: " << delta_output[0] << "     acc: " << acc_output[0] << std::endl;
+  std::cerr << "command out steer: " << return_command.steering_angle << "     acc: " << return_command.acceleration << std::endl;
 
   // Handle bad conditions if the solution is not good
   if( !success )
@@ -187,7 +220,7 @@ NMPC::setup_dynamic_model( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_siz
                            const dynamics::Trajectory&                                                       trajectory )
 {
   ocp.setDynamicModel( [&]( const VECTOR<double, NMPC::state_size>& state, const VECTOR<double, NMPC::input_size>& input,
-                            VECTOR<double, NMPC::state_size>& derivative, double current_time, void* ) {
+                            VECTOR<double, NMPC::state_size>& derivative, double current_time, void* user_data ) {
     const double l = 2.69; // wheelbase, can be tuned based on your vehicle
 
     // Dynamic model equations
@@ -199,13 +232,13 @@ NMPC::setup_dynamic_model( OptiNLC_OCP<double, NMPC::input_size, NMPC::state_siz
     // Interpolate trajectory points based on the current time
     auto reference_point = trajectory.get_state_at_time( current_time );
 
-    // const double lateral_error = -sin( state[PSI] ) * ( state[X] - reference_point.x ) + cos( state[PSI] ) * ( state[Y] -
-    // reference_point.y );
+    const double lateral_error = -sin( state[PSI] ) * ( state[X] - reference_point.x )
+                               + cos( state[PSI] ) * ( state[Y] - reference_point.y );
 
     derivative[L] = ( state[V] - reference_point.vx ) * ( state[V] - reference_point.vx )
-                  + 2 * ( state[X] - reference_point.x ) * ( state[X] - reference_point.x ) + input[DELTA] * input[DELTA]
-                  + 2 * ( state[Y] - reference_point.y ) * ( state[Y] - reference_point.y )
-                  + 1 * atan2( sin( reference_point.yaw_angle - state[PSI] ), cos( reference_point.yaw_angle - state[PSI] ) )
+                  + 3 * ( state[X] - reference_point.x ) * ( state[X] - reference_point.x ) + input[DELTA] * input[DELTA]
+                  + 3 * ( state[Y] - reference_point.y ) * ( state[Y] - reference_point.y )
+                  + 4 * atan2( sin( reference_point.yaw_angle - state[PSI] ), cos( reference_point.yaw_angle - state[PSI] ) )
                       * atan2( sin( reference_point.yaw_angle - state[PSI] ), cos( reference_point.yaw_angle - state[PSI] ) );
   } );
 }
