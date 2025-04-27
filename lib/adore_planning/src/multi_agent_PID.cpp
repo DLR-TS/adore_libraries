@@ -36,9 +36,7 @@ MultiAgentPID::set_parameters( const std::map<std::string, double>& params )
 {
   for( const auto& [name, value] : params )
   {
-    if( name == "wheelbase" )
-      wheelbase = value;
-    else if( name == "max_speed" )
+    if( name == "max_speed" )
       max_speed = value;
     else if( name == "desired_acceleration" )
       desired_acceleration = value;
@@ -85,6 +83,7 @@ MultiAgentPID::plan_trajectories( dynamics::TrafficParticipantSet& traffic_parti
   for( auto& [id, participant] : traffic_participant_set.participants )
   {
     participant.trajectory = dynamics::Trajectory();
+    participant.state.vx   = 0.0;
   }
   // Precompute motion model lambdas for each participant.
   std::map<int, MotionModel> motion_models;
